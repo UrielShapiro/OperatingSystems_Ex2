@@ -59,7 +59,7 @@ void print_board(Board board)
 			 if (board[x][y] == X) std::cout << 'X';
 			 else if (board[x][y] == O) std::cout << 'O';
 			 else if (board[x][y] == EMPTY) std::cout << COORDS_TO_SPOT(x, y);
-			 else throw std::invalid_argument("board spot is not a valid value");
+			 else throw std::domain_error("board spot is not a valid value");
 			 if (x == BOARD_SIZE - 1) std::cout << "│";
 		}
 		std::cout << std::endl;
@@ -106,6 +106,77 @@ bool ai_move(Board board, std::vector<uint8_t> strategy)
 	return false; // we went through all spots and didn't find an empty one
 }
 
+enum GameResult { ONGOING, DRAW, X_WIN, O_WIN };
+GameResult win_of(Square s)
+{
+	switch (s)
+	{
+	case X: return X_WIN;
+	case O: return O_WIN;
+	case EMPTY: throw std::domain_error("win_of was passed EMPTY");
+	default: throw std::domain_error("win_of was passed illegal Square value");
+	}
+}
+
+GameResult check_result(Board b)
+{
+	for (size_t y = 0; y < BOARD_SIZE; ++y)
+	{
+		if (b[0][y] == EMPTY) continue;
+		Square s = b[0][y];
+		bool line = true;
+		for (size_t x = 1; line && x < BOARD_SIZE; ++x)
+		{
+			if (b[x][y] != s) line = false;
+		}
+		if (line) return win_of(s);
+	}
+
+	for (size_t x = 0; x < BOARD_SIZE; ++x)
+	{
+		if (b[x][0] == EMPTY) continue;
+		Square s = b[x][0];
+		bool line = true;
+		for (size_t y = 1; line && y < BOARD_SIZE; ++y)
+		{
+			if (b[x][y] != s) line = false;
+		}
+		if (line) return win_of(s);
+	}
+
+	{
+		Square s = b[0][0];
+		if (s != EMPTY)
+		{
+			bool line = true;
+			for (size_t i = 1; line && i < BOARD_SIZE; ++i)
+			{
+				if (b[i][i] != s) line = false;
+			}
+			if (line) return win_of(s);
+		}
+	}
+
+	{
+		Square s = b[0][BOARD_SIZE - 1];
+		if (s != EMPTY)
+		{
+			bool line = true;
+			for (size_t i = 1; line && i < BOARD_SIZE; ++i)
+			{
+				if (b[i][BOARD_SIZE - i - 1] != s) line = false;
+			}
+			if (line) return win_of(s);
+		}
+	}
+
+	for (size_t x = 0; x < BOARD_SIZE; ++x)
+		for (size_t y = 0; y < BOARD_SIZE; ++y)
+			if (b[x][y] == EMPTY) return ONGOING;
+	
+	return DRAW;
+}
+
 int main(int argc, char *argv[])
 {
 	if (argc < 2)
@@ -116,10 +187,7 @@ int main(int argc, char *argv[])
 	}
 
 	std::vector<uint8_t> strategy;
-	try
-	{
-		strategy = extract_strategy(argv[1]);
-	}
+	try { strategy = extract_strategy(argv[1]); }
 	catch (const std::invalid_argument &e)
 	{
 		std::cerr << "Error in strategy: " << e.what() << std::endl;
@@ -130,13 +198,53 @@ int main(int argc, char *argv[])
 	Board board;
 	reset_board(board);
 
-	int choice;
-	while (ai_move(board, strategy))
+	GameResult result;
+	bool ai_turn = true;
+	while ((result = check_result(board)) == ONGOING)
 	{
+		if (ai_turn)
+		{
+			ai_move(board, strategy);
+		}
+		else
+		{
+			bool chose = false;
+			while (!chose)
+			{
+				std::cout << "Enter your choice of square: ";
+				std::string line;
+				std::getline(std::cin, line);
+				int choice;
+				try { choice = stoi(line); }
+				catch (const std::invalid_argument &e)
+				{
+					std::cout << "Please enter a number." << std::endl;
+					continue;
+				}
+				if (choice < 1 || choice > 9)
+				{
+					std::cout << "Invalid square number entered, please enter a digit from 1 to 9." << std::endl;
+					continue;
+				}
+				if (SPOT_FROM_BOARD(board, choice) != EMPTY)
+				{
+					std:: cout << "This sqaure is taken, please choose another sqaure." << std::endl;
+					continue;
+				}
+				SPOT_FROM_BOARD(board, choice) = O;
+				chose = true;
+			}
+		}
+		ai_turn = !ai_turn;
 		print_board(board);
-		std::cin >> choice;
-		if (choice < 1 || choice > 9) return 1;
-		SPOT_FROM_BOARD(board, choice) = O;
+	}
+	switch (result)
+	{
+	case O_WIN: std::cout << "You win!" << std::endl; break;
+	case X_WIN: std::cout << "I win!" << std::endl; break;
+	case DRAW: std::cout << "We drew!" << std::endl; break;
+	case ONGOING: throw std::domain_error("result is ONGOING after game finish");
+	default: throw std::domain_error("invalid GameResult value");
 	}
 
 	return 0;
