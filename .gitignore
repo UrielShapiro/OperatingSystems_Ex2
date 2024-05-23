@@ -1,0 +1,5 @@
+# tic-tac-toe executable
+tic_tac_toe/ttt
+
+# vim swap files
+*.swp
