@@ -56,8 +56,8 @@ void print_board(Board board)
 		for (size_t x = 0; x < BOARD_SIZE; ++x)
 		{
 			 std::cout << "│";
-			 if (board[x][y] == X) std::cout << 'X';
-			 else if (board[x][y] == O) std::cout << 'O';
+			 if (board[x][y] == X) std::cout << "\e[31mX\e[0m";
+			 else if (board[x][y] == O) std::cout << "\e[32mO\e[0m";
 			 else if (board[x][y] == EMPTY) std::cout << COORDS_TO_SPOT(x, y);
 			 else throw std::domain_error("board spot is not a valid value");
 			 if (x == BOARD_SIZE - 1) std::cout << "│";
