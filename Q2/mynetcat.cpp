@@ -15,8 +15,7 @@
 
 int main(int argc, char *argv[])
 {
-
-    if (argc < 4)
+    if (argc < 3)
     {
         std::cerr << "Not enough arguments provided" << std::endl;
         std::cerr << "Usage: ./mync -e <program name> <program strategy>" << std::endl;
@@ -26,14 +25,16 @@ int main(int argc, char *argv[])
     char *programName = NULL;
     char *strategy = NULL;
     size_t i = 0;
+
+    // Parse the arguments
     while (i < (size_t)argc)
     {
         if (!strcmp(argv[i], "-e"))
         {
             try
             {
-                programName = argv[++i];
-                strategy = argv[++i];
+                programName = strtok(argv[++i], " ");
+                strategy = strtok(NULL, " ");
             }
             catch (const std::out_of_range &e)
             {
@@ -73,6 +74,8 @@ int main(int argc, char *argv[])
         std::cerr << "Error creating pipe" << std::endl;
         return 1;
     }
+
+    //                   ttt_path         +    '/'       +     programName     + '\0'     
     size_t path_length = strlen(ttt_path) + sizeof(char) + strlen(programName) + 1;
     char *program = (char *)malloc(sizeof(char) * path_length);
     if (!program)
@@ -91,8 +94,8 @@ int main(int argc, char *argv[])
             free(program);
             exit(1);
         }
-        close(pipefd[PIPE_WRITE_END]);
-        execlp(program, program, strategy, (char *)NULL);
+        close(pipefd[PIPE_WRITE_END]);                    // Close the write end becuase it is no longer needed
+        execlp(program, program, strategy, (char *)NULL); // Execute the ttt with the strategy provided
 
         std::cerr << "execlp(3)" << std::endl; // If reached here, execlp has failed
         exit(1);
