@@ -75,15 +75,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    //                   ttt_path         +    '/'       +     programName     + '\0'     
-    size_t path_length = strlen(ttt_path) + sizeof(char) + strlen(programName) + 1;
-    char *program = (char *)malloc(sizeof(char) * path_length);
-    if (!program)
-    {
-        std::cerr << "ERROR: Failed to allocate memory" << std::endl;
-        return 1;
-    }
-    snprintf(program, path_length, "%s/%s", ttt_path, programName);
+    std::string program = std::string(ttt_path) + "/" + programName;
 
     if (fork() == 0)
     {
@@ -91,16 +83,14 @@ int main(int argc, char *argv[])
         if (dup2(pipefd[PIPE_WRITE_END], STDOUT_FILENO) == -1) // Redirect the stdout to the write end of the pipe
         {
             std::cerr << "Error redirecting stdout to the pipe" << std::endl;
-            free(program);
             exit(1);
         }
         close(pipefd[PIPE_WRITE_END]);                    // Close the write end becuase it is no longer needed
-        execlp(program, program, strategy, (char *)NULL); // Execute the ttt with the strategy provided
+        execlp(program.c_str(), program.c_str(), strategy, (char *)NULL); // Execute the ttt with the strategy provided
 
         std::cerr << "execlp(3)" << std::endl; // If reached here, execlp has failed
         exit(1);
     }
-    free(program);
 
     // Parent proccess:
     close(pipefd[PIPE_WRITE_END]); // Close unused end
