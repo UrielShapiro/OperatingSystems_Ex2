@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
 			bool chose = false;
 			while (!chose)
 			{
-				std::cout << "Enter your choice of square: ";
+				std::cout << "Enter your choice of square:\n";
 				std::string line;
 				std::getline(std::cin, line);
 				int choice;
