@@ -22,8 +22,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    char *programName = NULL;
-    char *strategy = NULL;
+    std::string programName;
+    std::string strategy;
     size_t i = 0;
 
     // Parse the arguments
@@ -44,13 +44,13 @@ int main(int argc, char *argv[])
         i++;
     }
 
-    if (!strcmp(programName, " ttt"))
+    if (!programName.compare(" ttt"))
     {
         std::cerr << "Arguments provided are not valid" << std::endl;
         std::cerr << "Program name: " << programName << std::endl;
         return 1;
     }
-    if (strlen(strategy) < 8)
+    if (strategy.length() < 9)
     {
         std::cerr << "Arguments provided are not valid" << std::endl;
         std::cerr << "strategy length does not contain all of the numbers between 1-9" << std::endl;
@@ -58,9 +58,9 @@ int main(int argc, char *argv[])
     }
 
 #ifdef DEBUG
-    std::cout << "Program Name: " << programName << std::endl;
-    std::cout << "Strategy: ";
-    for (uint8_t &s : strategy)
+    std::cout << "Program Name:" << programName << std::endl;
+    std::cout << "Strategy:";
+    for (char &s : strategy)
     {
         std::cout << s;
     }
@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
             exit(1);
         }
         close(pipefd[PIPE_WRITE_END]);                    // Close the write end becuase it is no longer needed
-        execlp(program.c_str(), program.c_str(), strategy, (char *)NULL); // Execute the ttt with the strategy provided
+        execlp(program.c_str(), program.c_str(), strategy.c_str(), (char *)NULL); // Execute the ttt with the strategy provided
 
         std::cerr << "execlp(3)" << std::endl; // If reached here, execlp has failed
         exit(1);
