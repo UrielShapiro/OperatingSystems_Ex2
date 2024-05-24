@@ -3,3 +3,6 @@ tic_tac_toe/ttt
 
 # vim swap files
 *.swp
+
+# vscode settings
+.vscode/
