@@ -1,8 +1,8 @@
 # tic-tac-toe executable
 tic_tac_toe/ttt
 
-#mynetcat executable
-Q2/mync
+# mynetcat executables
+*/mync
 
 # vim swap files
 *.swp
@@ -10,5 +10,5 @@ Q2/mync
 # vscode settings
 .vscode/
 
-#object files
+# object files
 *.o
