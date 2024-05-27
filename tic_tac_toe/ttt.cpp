@@ -214,6 +214,11 @@ int main(int argc, char *argv[])
 				std::cout << "Enter your choice of square:\n";
 				std::string line;
 				std::getline(std::cin, line);
+				if (std::cin.eof())
+				{
+					std::cout << "Input closed" << std::endl;
+					exit(1);
+				}
 				int choice;
 				try { choice = stoi(line); }
 				catch (const std::invalid_argument &e)
