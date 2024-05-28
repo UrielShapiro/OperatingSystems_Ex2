@@ -11,68 +11,85 @@
 
 #define MAX_PORT_SIZE 6
 
-int open_tcp_server(sockaddr_in *addr, std::vector<int> &sockets_arr)
+// int open_tcp_server(sockaddr_in *addr, std::vector<int> &sockets_arr)
+// {
+//     int server_sock = socket(addr->sin_family, SOCK_STREAM, IPPROTO_TCP);
+//     if (server_sock < 0)
+//     {
+//         throw std::runtime_error("Error opening a TCP server socket");
+//     }
+//     sockets_arr.push_back(server_sock);
+
+//     int reuse = 1;
+//     if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+//     {
+//         throw std::runtime_error("Error setting socket option SO_REUSEADDR");
+//     }
+
+//     if (bind(server_sock, (struct sockaddr *)addr, sizeof(*addr)) < 0)
+//     {
+//         throw std::runtime_error("Error binding the TCP server socket");
+//     }
+//     if (listen(server_sock, 1) < 0)
+//     {
+//         throw std::runtime_error("Error listening on server socket");
+//     }
+//     struct sockaddr client_addr;
+//     socklen_t client_addr_len = sizeof(client_addr);
+//     int client_socket = accept(server_sock, &client_addr, &client_addr_len);
+//     if (client_socket < 0)
+//     {
+//         throw std::runtime_error("Error accepting client");
+//     }
+//     sockets_arr.push_back(client_socket);
+
+//     return client_socket;
+// }
+
+// int open_udp_server(sockaddr_in *addr, std::vector<int> &sockets_arr)
+// {
+//     int server_sock = socket(addr->sin_family, SOCK_DGRAM, IPPROTO_UDP);
+//     if (server_sock < 0)
+//     {
+//         throw std::runtime_error("Error opening a UDP server socket");
+//     }
+//     sockets_arr.push_back(server_sock);
+
+//     int reuse = 1;
+//     if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+//     {
+//         throw std::runtime_error("Error setting socket option SO_REUSEADDR");
+//     }
+//     if (bind(server_sock, (struct sockaddr *)addr, sizeof(*addr)) < 0)
+//     {
+//         throw std::runtime_error("Error binding the UDP server socket");
+//     }
+//     return server_sock;
+// }
+
+int open_dgram_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
 {
-    int server_sock = socket(addr->sin_family, SOCK_STREAM, IPPROTO_TCP);
-    if (server_sock < 0)
-    {
-        throw std::runtime_error("Error opening a TCP server socket");
-    }
-    sockets_arr.push_back(server_sock);
-
-    int reuse = 1;
-    if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
-    {
-        throw std::runtime_error("Error setting socket option SO_REUSEADDR");
-    }
-
-    if (bind(server_sock, (struct sockaddr *)addr, sizeof(*addr)) < 0)
-    {
-        throw std::runtime_error("Error binding the TCP server socket");
-    }
-    if (listen(server_sock, 1) < 0)
-    {
-        throw std::runtime_error("Error listening on server socket");
-    }
-    struct sockaddr client_addr;
-    socklen_t client_addr_len = sizeof(client_addr);
-    int client_socket = accept(server_sock, &client_addr, &client_addr_len);
-    if (client_socket < 0)
-    {
-        throw std::runtime_error("Error accepting client");
-    }
-    sockets_arr.push_back(client_socket);
-
-    return client_socket;
-}
-
-int open_udp_server(sockaddr_in *addr, std::vector<int> &sockets_arr)
-{
-    int server_sock = socket(addr->sin_family, SOCK_DGRAM, IPPROTO_UDP);
-    if (server_sock < 0)
-    {
-        throw std::runtime_error("Error opening a UDP server socket");
-    }
-    sockets_arr.push_back(server_sock);
-
-    int reuse = 1;
-    if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
-    {
-        throw std::runtime_error("Error setting socket option SO_REUSEADDR");
-    }
-    if (bind(server_sock, (struct sockaddr *)addr, sizeof(*addr)) < 0)
-    {
-        throw std::runtime_error("Error binding the UDP server socket");
-    }
-    return server_sock;
-}
-
-int open_udp_client(sockaddr_in *server_addr, std::vector<int> &sockets_arr)
-{
-    int client_sock = socket(server_addr->sin_family, SOCK_DGRAM, IPPROTO_UDP);
+    int client_sock = socket(server_addr->sa_family, SOCK_DGRAM, 0);
     if (client_sock < 0)
     {
         throw std::runtime_error("Error opening a UDP client socket");
+    }
+    sockets_arr.push_back(client_sock);
+    socklen_t server_addr_len;
+    if (connect(client_sock, (struct sockaddr *)server_addr, sizeof(*server_addr)) < 0)
+    {
+        throw std::runtime_error("Error connecting to the server socket: " + std::string(strerror(errno)));
+    }
+
+    return client_sock;
+}
+
+int open_stream_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
+{
+    int client_sock = socket(server_addr->sa_family, SOCK_STREAM, 0);
+    if (client_sock < 0)
+    {
+        throw std::runtime_error("Error opening a client socket");
     }
     sockets_arr.push_back(client_sock);
 
@@ -84,35 +101,33 @@ int open_udp_client(sockaddr_in *server_addr, std::vector<int> &sockets_arr)
     return client_sock;
 }
 
-int open_tcp_client(sockaddr_in *server_address, std::vector<int> &sockets_arr)
+int open_stream_server(sockaddr *server_address, std::vector<int> &sockets_arr)
 {
-    int client_sock = socket(server_address->sin_family, SOCK_STREAM, IPPROTO_TCP);
-    if (client_sock < 0)
-    {
-        throw std::runtime_error("Error opening a client socket");
-    }
-    sockets_arr.push_back(client_sock);
-
-    if (connect(client_sock, (struct sockaddr *)server_address, sizeof(*server_address)) < 0)
-    {
-        throw std::runtime_error("Error connecting to the server socket");
-    }
-
-    return client_sock;
-}
-
-int open_uds_stream_server(sockaddr_un *server_address, std::vector<int> &sockets_arr)
-{
-    int server_sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    int server_sock = socket(server_address->sa_family, SOCK_STREAM, 0);
     if (server_sock < 0)
     {
         throw std::runtime_error("Error opening a server stream");
     }
     sockets_arr.push_back(server_sock);
 
+    if (server_address->sa_family == AF_UNIX)
+    {
+        if (unlink(((struct sockaddr_un *)server_address)->sun_path) < 0)
+        {
+            throw std::runtime_error("Error unlinking UDS file");
+        }
+    }
+    else
+    {
+        int reuse = 1;
+        if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+        {
+            throw std::runtime_error("Error setting socket option SO_REUSEADDR");
+        }
+    }
     if (bind(server_sock, (struct sockaddr *)server_address, sizeof(*server_address)) < 0)
     {
-        throw std::runtime_error("Error binding the UDS server socket");
+        throw std::runtime_error("Error binding the UDS server socket: " + std::string(strerror(errno)));
     }
     if (listen(server_sock, 1) < 0)
     {
@@ -129,19 +144,29 @@ int open_uds_stream_server(sockaddr_un *server_address, std::vector<int> &socket
     return client_socket;
 }
 
-int open_uds_dgram_server(sockaddr_un *server_address, std::vector<int> &sockets_arr)
+int open_dgram_server(sockaddr *server_address, std::vector<int> &sockets_arr)
 {
-    int server_sock = socket(AF_UNIX, SOCK_DGRAM, IPPROTO_UDP);
+    int server_sock = socket(server_address->sa_family, SOCK_DGRAM, 0);
     if (server_sock < 0)
     {
         throw std::runtime_error("Error opening a UDP server socket");
     }
     sockets_arr.push_back(server_sock);
 
-    int reuse = 1;
-    if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+    if (server_address->sa_family == AF_UNIX)
     {
-        throw std::runtime_error("Error setting socket option SO_REUSEADDR");
+        if (unlink(((struct sockaddr_un *)server_address)->sun_path) < 0)
+        {
+            throw std::runtime_error("Error unlinking UDS file");
+        }
+    }
+    else
+    {
+        int reuse = 1;
+        if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+        {
+            throw std::runtime_error("Error setting socket option SO_REUSEADDR");
+        }
     }
     if (bind(server_sock, (struct sockaddr *)server_address, sizeof(*server_address)) < 0)
     {
@@ -156,21 +181,14 @@ void print_usage(char *program_name)
     std::cerr << "Usage: " << program_name << " -e \"<command>\" [-(i|o|b) UDP/TCP(C<IP or HOSTNAME>,<PORT>|S<PORT>)]" << std::endl;
 }
 
-enum protocol
-{
-    CONN_TCP,
-    CONN_UDP,
-    CONN_UDS
-};
-
 typedef struct
 {
     struct sockaddr addr;
-    protocol prot;
+    int socktype;
     bool is_server;
 } connection;
 
-connection *parse_address(char *arg)
+connection *parse_connection(char *arg)
 {
     if (strlen(arg) < 4)
     {
@@ -184,21 +202,54 @@ connection *parse_address(char *arg)
 
     if (strncmp(arg, "TCP", 3) == 0)
     {
-        result->prot = CONN_TCP;
+        result->socktype = SOCK_STREAM;
         hints.ai_socktype = SOCK_STREAM;
         hints.ai_protocol = IPPROTO_TCP;
     }
     else if (strncmp(arg, "UDP", 3) == 0)
     {
-        result->prot = CONN_UDP;
+        result->socktype = SOCK_DGRAM;
         hints.ai_socktype = SOCK_DGRAM;
         hints.ai_protocol = IPPROTO_UDP;
     }
     else if (strncmp(arg, "UDS", 3) == 0)
     {
+        if (strlen(arg) < 5)
+        {
+            free(result);
+            throw std::invalid_argument("UDS argument is too short");
+        }
+        if (arg[4] == 'S')
+            result->socktype = SOCK_STREAM;
+        else if (arg[4] == 'D')
+            result->socktype = SOCK_DGRAM;
+        else
+        {
+            free(result);
+            throw std::invalid_argument("Unkown UDS type");
+        }
+        if (arg[3] == 'S')
+            result->is_server = true;
+        else if (arg[3] == 'C')
+            result->is_server = false;
+        else
+        {
+            free(result);
+            throw std::invalid_argument("Unkown connection type specifier");
+        }
+        struct sockaddr_un *addr_unix = (struct sockaddr_un *)&result->addr;
+        if (strlen(arg + 5) > sizeof(addr_unix->sun_path))
+        {
+            free(result);
+            throw std::invalid_argument("UDS path is too long");
+        }
+        strcpy(addr_unix->sun_path, arg + 5);
+        addr_unix->sun_family = AF_UNIX;
+        return result;
     }
     else
     {
+        free(result);
         throw std::invalid_argument("Unkown protocol specifier");
     }
 
@@ -275,20 +326,20 @@ connection *parse_address(char *arg)
 
 int setup_connection(connection *conn, std::vector<int> &sockets)
 {
-    switch (conn->prot)
+    switch (conn->socktype)
     {
-    case CONN_TCP:
+    case SOCK_STREAM:
         if (conn->is_server)
-            return open_tcp_server(&conn->addr, sockets);
+            return open_stream_server(&conn->addr, sockets);
         else
-            return open_tcp_client(&conn->addr, sockets);
-    case CONN_UDP:
+            return open_stream_client(&conn->addr, sockets);
+    case SOCK_DGRAM:
         if (conn->is_server)
-            return open_udp_server(&conn->addr, sockets);
+            return open_dgram_server(&conn->addr, sockets);
         else
-            return open_udp_client(&conn->addr, sockets);
+            return open_dgram_client(&conn->addr, sockets);
     default:
-        throw std::domain_error("Invalid connection type");
+        throw std::runtime_error("Invalid connection type");
     }
 }
 
@@ -340,9 +391,9 @@ int main(int argc, char *argv[])
 
             try
             {
-                input = parse_address(optarg);
-                if (input->prot == CONN_UDP && !input->is_server)
-                    throw std::invalid_argument("Cannot use UDP client as input");
+                input = parse_connection(optarg);
+                if (input->socktype == SOCK_DGRAM && !input->is_server)
+                    throw std::invalid_argument("Cannot use datagram client as input");
             }
             catch (const std::invalid_argument &e)
             {
@@ -384,9 +435,9 @@ int main(int argc, char *argv[])
             }
             try
             {
-                output = parse_address(optarg);
-                if (output->prot == CONN_UDP && output->is_server)
-                    throw std::invalid_argument("Cannot use UDP server as output");
+                output = parse_connection(optarg);
+                if (output->socktype == SOCK_DGRAM && output->is_server)
+                    throw std::invalid_argument("Cannot use datagram server as output");
             }
             catch (const std::invalid_argument &e)
             {
@@ -427,9 +478,9 @@ int main(int argc, char *argv[])
             }
             try
             {
-                both = parse_address(optarg);
-                if (both->prot == CONN_UDP)
-                    throw std::invalid_argument("Cannot use UDP as both input and output");
+                both = parse_connection(optarg);
+                if (both->socktype == SOCK_DGRAM)
+                    throw std::invalid_argument("Cannot use datagram connection as both input and output");
             }
             catch (const std::invalid_argument &e)
             {
