@@ -10,6 +10,58 @@
 
 #define MAX_PORT_SIZE 6
 
+int open_server(sockaddr_in *sock, std::vector<int> &sockets_arr)
+{
+	int server_sock = socket(sock->sin_family, SOCK_STREAM, IPPROTO_TCP);
+	if (server_sock < 0)
+	{
+		throw std::runtime_error("Error opening a server socket");
+	}
+	sockets_arr.push_back(server_sock);
+
+	int reuse = 1;
+	if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+	{
+		throw std::runtime_error("Error setting socket option SO_REUSEADDR");
+	}
+
+	if (bind(server_sock, (struct sockaddr *)sock, sizeof(sock)) < 0)
+	{
+		throw std::runtime_error("Error binding the server socket");
+	}
+	if (listen(server_sock, 1) < 0)
+	{
+		throw std::runtime_error("Error listening on server socket");
+	}
+	struct sockaddr client_addr;
+	socklen_t client_addr_len = sizeof(client_addr);
+	int client_socket = accept(server_sock, &client_addr, &client_addr_len);
+	if (client_socket < 0)
+	{
+		throw std::runtime_error("Error accepting client");
+	}
+	sockets_arr.push_back(client_socket);
+
+	return client_socket;
+}
+
+int open_client(sockaddr_in *sock, std::vector<int> &sockets_arr)
+{
+	int client_sock = socket(sock->sin_family, SOCK_STREAM, IPPROTO_TCP);
+	if (client_sock < 0)
+	{
+		throw std::runtime_error("Error opening a client socket");
+	}
+	sockets_arr.push_back(client_sock);
+
+	if (connect(client_sock, (struct sockaddr *)sock, sizeof(*sock)) < 0)
+	{
+		throw std::runtime_error("Error connecting to the server socket");
+	}
+
+	return client_sock;
+}
+
 void print_usage(char *program_name)
 {
 	std::cerr << "Usage: " << program_name << " -e \"<command>\" [-(i|o|b) TCP(C<IP or HOSTNAME>,<PORT>|S<PORT>)]" << std::endl;
@@ -272,79 +324,35 @@ int main(int argc, char *argv[])
 	{
 		if (both->sin_addr.s_addr == INADDR_ANY) // server
 		{
-			int server_sock = socket(both->sin_family, SOCK_STREAM, IPPROTO_TCP);
-			if (server_sock < 0)
+			try
 			{
-				perror("Error opening a server socket");
+				int sock = open_server(both, sockets);
+				input_fd = output_fd = sock;
+			}
+			catch (const std::runtime_error &e)
+			{
+				std::cerr << "Error opening the server: " << e.what() << std::endl;
 				free(output);
 				free(input);
 				free(both);
 				return 1;
 			}
-			sockets.push_back(server_sock);
-
-			int reuse = 1;
-			if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
-			{
-				perror("Error setting socket option SO_REUSEADDR");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-
-			if (bind(server_sock, (struct sockaddr *)both, sizeof(*both)) < 0)
-			{
-				perror("Error binding the server socket");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-			if (listen(server_sock, 1) < 0)
-			{
-				perror("Error listening on server socket");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-			struct sockaddr client_addr;
-			socklen_t client_addr_len = sizeof(client_addr);
-			int sock = accept(server_sock, &client_addr, &client_addr_len);
-			if (sock < 0)
-			{
-				perror("Error accepting client");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-			sockets.push_back(sock);
-			input_fd = output_fd = sock;
 		}
 		else
 		{
-			int sock = socket(both->sin_family, SOCK_STREAM, IPPROTO_TCP);
-			if (sock < 0)
+			try
 			{
-				perror("Error opening a client socket");
+				int sock = open_client(both, sockets);
+				input_fd = output_fd = sock;
+			}
+			catch (const std::runtime_error &e)
+			{
+				std::cerr << "Error opening the client: " << e.what() << std::endl;
 				free(output);
 				free(input);
 				free(both);
 				return 1;
 			}
-			sockets.push_back(sock);
-
-			if (connect(sock, (struct sockaddr *)both, sizeof(*both)) < 0)
-			{
-				perror("Error connecting to the server socket");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-			input_fd = output_fd = sock;
 		}
 	}
 
@@ -352,81 +360,35 @@ int main(int argc, char *argv[])
 	{
 		if (input->sin_addr.s_addr == INADDR_ANY) // Server
 		{
-			int server_sock = socket(input->sin_family, SOCK_STREAM, IPPROTO_TCP);
-			if (server_sock == -1)
+			try
 			{
-				perror("Error opening a server socket");
+				int sock = open_server(input, sockets);
+				input_fd = sock;
+			}
+			catch (const std::runtime_error &e)
+			{
+				std::cerr << "Error opening the server: " << e.what() << std::endl;
 				free(output);
 				free(input);
 				free(both);
 				return 1;
 			}
-
-			sockets.push_back(server_sock);
-
-			int reuse = 1;
-			if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
-			{
-				perror("Error setting socket option SO_REUSEADDR");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-
-			if (bind(server_sock, (struct sockaddr *)input, sizeof(*input)) < 0)
-			{
-				std::cerr << "Error binding the server socket" << std::endl;
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-
-			if (listen(server_sock, 1) < 0)
-			{
-				perror("Error binding the server socket");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-
-			struct sockaddr client_addr;
-			socklen_t client_addr_len = sizeof(client_addr);
-			int sock = accept(server_sock, &client_addr, &client_addr_len);
-			if (sock < 0)
-			{
-				perror("Error accepting the client socket");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-			input_fd = sock;
 		}
 		else
 		{
-			int sock = socket(input->sin_family, SOCK_STREAM, IPPROTO_TCP);
-			if (sock < 0)
+			try
 			{
-				perror("Error creating a client socket");
+				int sock = open_client(input, sockets);
+				input_fd = sock;
+			}
+			catch (const std::runtime_error &e)
+			{
+				std::cerr << "Error opening the client: " << e.what() << std::endl;
 				free(output);
 				free(input);
 				free(both);
 				return 1;
 			}
-			sockets.push_back(sock);
-
-			if (connect(sock, (struct sockaddr *)input, sizeof(*input)) < 0)
-			{
-				perror("Error connecting to the server socket");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-			input_fd = sock;
 		}
 	}
 
@@ -434,69 +396,36 @@ int main(int argc, char *argv[])
 	{
 		if (output->sin_addr.s_addr == INADDR_ANY) // Server
 		{
-			int server_sock = socket(output->sin_family, SOCK_STREAM, IPPROTO_TCP);
 
-			if (server_sock == -1)
+			try
 			{
-				perror("Error opening a server socket");
+				int sock = open_server(output, sockets);
+				output_fd = sock;
+			}
+			catch (const std::runtime_error &e)
+			{
+				std::cerr << "Error opening the server: " << e.what() << std::endl;
 				free(output);
 				free(input);
 				free(both);
 				return 1;
 			}
-			sockets.push_back(server_sock);
-
-			if (bind(server_sock, (struct sockaddr *)output, sizeof(*output)) < 0)
-			{
-				std::cerr << "Error binding the server socket" << std::endl;
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-			if (listen(server_sock, 1) < 0)
-			{
-				perror("Error binding the server socket");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-			struct sockaddr client_addr;
-			socklen_t client_addr_len = sizeof(client_addr);
-			int sock = accept(server_sock, &client_addr, &client_addr_len);
-			if (sock < 0)
-			{
-				perror("Error accepting the client socket");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-			output_fd = sock;
 		}
 		else
 		{
-			int sock = socket(output->sin_family, SOCK_STREAM, IPPROTO_TCP);
-			if (sock < 0)
+			try
 			{
-				perror("Error creating a client socket");
+				int sock = open_client(output, sockets);
+				output_fd = sock;
+			}
+			catch (const std::runtime_error &e)
+			{
+				std::cerr << "Error opening the client: " << e.what() << std::endl;
 				free(output);
 				free(input);
 				free(both);
 				return 1;
 			}
-			sockets.push_back(sock);
-
-			if (connect(sock, (struct sockaddr *)output, sizeof(*output)) < 0)
-			{
-				perror("Error connecting to the server socket");
-				free(output);
-				free(input);
-				free(both);
-				return 1;
-			}
-			output_fd = sock;
 		}
 	}
 
@@ -531,7 +460,7 @@ int main(int argc, char *argv[])
 	{
 		close(socket);
 	}
-	
+
 	free(output);
 	free(input);
 	free(both);
