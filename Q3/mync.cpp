@@ -17,7 +17,7 @@ void print_usage(char *program_name)
 
 struct sockaddr_in *parse_address(char *arg)
 {
-	if (strlen(arg) < 5)
+	if (strlen(arg) < 4)
 	{
 		throw std::invalid_argument("Argument is too short");
 	}
@@ -37,6 +37,11 @@ struct sockaddr_in *parse_address(char *arg)
 
 	if (arg[3] == 'S')
 	{
+		if (strlen(arg + 4) < 1)
+		{
+			free(port);
+			throw std::invalid_argument("No port provided in server specifier");
+		}
 		strncpy(port, arg + 4, MAX_PORT_SIZE);
 
 		hints.ai_flags |= AI_PASSIVE;
@@ -46,11 +51,26 @@ struct sockaddr_in *parse_address(char *arg)
 		char *comma = arg + 4;
 		while (*comma != '\0' && *comma != ',')
 			comma += 1;
-		if (*comma == '\0') throw std::invalid_argument("No comma seperator in client specifier");
+		if (*comma == '\0')
+		{
+			free(port);
+			throw std::invalid_argument("No comma seperator in client specifier");
+		}
+		if (strlen(comma + 1) < 1)
+		{
+			free(port);
+			throw std::invalid_argument("No port provided in client specifier");
+		}
 		strncpy(port, comma + 1, MAX_PORT_SIZE);
 
 		hostname = (char *)malloc(INET_ADDRSTRLEN); // IPv6: max(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)
 
+		if (comma == arg + 4)
+		{
+			free(port);
+			free(hostname);
+			throw std::invalid_argument("No IP provided in client specifier");
+		}
 		strncpy(hostname, arg + 4, comma - (arg + 4));
 		hostname[comma - (arg + 4)] = '\0';
 	}
@@ -59,6 +79,8 @@ struct sockaddr_in *parse_address(char *arg)
 	int error = getaddrinfo(hostname, port, &hints, &addrinfo_ret);
 	if (error != 0)
 	{
+		free(port);
+		free(hostname);
 		throw std::runtime_error(gai_strerror(error));
 	}
 
@@ -95,6 +117,15 @@ int main(int argc, char *argv[])
 			break;
 
 		case 'i':
+			if (input != NULL)
+			{
+				print_usage(argv[0]);
+				std::cerr << "Cannot have double specifier for input" << std::endl;
+				free(output);
+				free(input);
+				free(both);
+				return 1;
+			}
 			if (both != NULL)
 			{
 				print_usage(argv[0]);
@@ -129,6 +160,15 @@ int main(int argc, char *argv[])
 			}
 			break;
 		case 'o':
+			if (output != NULL)
+			{
+				print_usage(argv[0]);
+				std::cerr << "Cannot have double specifier for output" << std::endl;
+				free(output);
+				free(input);
+				free(both);
+				return 1;
+			}
 			if (both != NULL)
 			{
 				print_usage(argv[0]);
@@ -161,6 +201,15 @@ int main(int argc, char *argv[])
 			}
 			break;
 		case 'b':
+			if (both != NULL)
+			{
+				print_usage(argv[0]);
+				std::cerr << "Cannot have double specifier for both" << std::endl;
+				free(output);
+				free(input);
+				free(both);
+				return 1;
+			}
 			if (input != NULL || output != NULL)
 			{
 				print_usage(argv[0]);
@@ -234,7 +283,6 @@ int main(int argc, char *argv[])
 			}
 			sockets.push_back(server_sock);
 
-			
 			int reuse = 1;
 			if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
 			{
@@ -287,7 +335,7 @@ int main(int argc, char *argv[])
 				return 1;
 			}
 			sockets.push_back(sock);
-			
+
 			if (connect(sock, (struct sockaddr *)both, sizeof(*both)) < 0)
 			{
 				perror("Error connecting to the server socket");
@@ -369,7 +417,7 @@ int main(int argc, char *argv[])
 				return 1;
 			}
 			sockets.push_back(sock);
-			
+
 			if (connect(sock, (struct sockaddr *)input, sizeof(*input)) < 0)
 			{
 				perror("Error connecting to the server socket");
@@ -397,7 +445,7 @@ int main(int argc, char *argv[])
 				return 1;
 			}
 			sockets.push_back(server_sock);
-			
+
 			if (bind(server_sock, (struct sockaddr *)output, sizeof(*output)) < 0)
 			{
 				std::cerr << "Error binding the server socket" << std::endl;
@@ -473,6 +521,9 @@ int main(int argc, char *argv[])
 	{
 		perror("ERROR: On command execution (system(3))");
 		std::cerr << "INFO: Command was \"" << command << "\"" << std::endl;
+		free(output);
+		free(input);
+		free(both);
 		return 1;
 	}
 
@@ -480,6 +531,10 @@ int main(int argc, char *argv[])
 	{
 		close(socket);
 	}
+	
+	free(output);
+	free(input);
+	free(both);
 
 	return 0;
 }
