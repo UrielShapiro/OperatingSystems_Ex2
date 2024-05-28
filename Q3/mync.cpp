@@ -44,9 +44,9 @@ struct sockaddr_in *parse_address(char *arg)
 	else if (arg[3] == 'C')
 	{
 		char *comma = arg + 4;
-		while (*comma != ',')
+		while (*comma != '\0' && *comma != ',')
 			comma += 1;
-
+		if (*comma == '\0') throw std::invalid_argument("No comma seperator in client specifier");
 		strncpy(port, comma + 1, MAX_PORT_SIZE);
 
 		hostname = (char *)malloc(INET_ADDRSTRLEN); // IPv6: max(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
 			}
 			catch (const std::invalid_argument &e)
 			{
-				std::cerr << "Error in address parser" << e.what() << std::endl;
+				std::cerr << "Error in address argument: " << e.what() << std::endl;
 				print_usage(argv[0]);
 				free(output);
 				free(input);
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 			}
 			catch (const std::invalid_argument &e)
 			{
-				std::cerr << "Error in address parser" << e.what() << std::endl;
+				std::cerr << "Error in address argument: " << e.what() << std::endl;
 				print_usage(argv[0]);
 				free(output);
 				free(input);
@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
 			}
 			catch (const std::runtime_error &e)
 			{
-				std::cerr << "Error finding hostname" << e.what() << std::endl;
+				std::cerr << "Error finding hostname: " << e.what() << std::endl;
 				print_usage(argv[0]);
 				free(output);
 				free(input);
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
 			}
 			catch (const std::invalid_argument &e)
 			{
-				std::cerr << "Error in address parser" << e.what() << std::endl;
+				std::cerr << "Error in address argument: " << e.what() << std::endl;
 				print_usage(argv[0]);
 				free(output);
 				free(input);
