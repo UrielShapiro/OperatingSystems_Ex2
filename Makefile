@@ -1,6 +1,6 @@
 CXX = g++
 CXX_FLAGS = -Wall -Wextra -ggdb
-TTT = tic_tac_toe/ttt
+TTT = Q1/ttt
 Q2_mync = Q2/mync
 Q3_mync = Q3/mync
 Q4_mync = Q4/mync
