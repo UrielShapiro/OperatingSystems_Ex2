@@ -11,62 +11,6 @@
 
 #define MAX_PORT_SIZE 6
 
-// int open_tcp_server(sockaddr_in *addr, std::vector<int> &sockets_arr)
-// {
-//     int server_sock = socket(addr->sin_family, SOCK_STREAM, IPPROTO_TCP);
-//     if (server_sock < 0)
-//     {
-//         throw std::runtime_error("Error opening a TCP server socket");
-//     }
-//     sockets_arr.push_back(server_sock);
-
-//     int reuse = 1;
-//     if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
-//     {
-//         throw std::runtime_error("Error setting socket option SO_REUSEADDR");
-//     }
-
-//     if (bind(server_sock, (struct sockaddr *)addr, sizeof(*addr)) < 0)
-//     {
-//         throw std::runtime_error("Error binding the TCP server socket");
-//     }
-//     if (listen(server_sock, 1) < 0)
-//     {
-//         throw std::runtime_error("Error listening on server socket");
-//     }
-//     struct sockaddr client_addr;
-//     socklen_t client_addr_len = sizeof(client_addr);
-//     int client_socket = accept(server_sock, &client_addr, &client_addr_len);
-//     if (client_socket < 0)
-//     {
-//         throw std::runtime_error("Error accepting client");
-//     }
-//     sockets_arr.push_back(client_socket);
-
-//     return client_socket;
-// }
-
-// int open_udp_server(sockaddr_in *addr, std::vector<int> &sockets_arr)
-// {
-//     int server_sock = socket(addr->sin_family, SOCK_DGRAM, IPPROTO_UDP);
-//     if (server_sock < 0)
-//     {
-//         throw std::runtime_error("Error opening a UDP server socket");
-//     }
-//     sockets_arr.push_back(server_sock);
-
-//     int reuse = 1;
-//     if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
-//     {
-//         throw std::runtime_error("Error setting socket option SO_REUSEADDR");
-//     }
-//     if (bind(server_sock, (struct sockaddr *)addr, sizeof(*addr)) < 0)
-//     {
-//         throw std::runtime_error("Error binding the UDP server socket");
-//     }
-//     return server_sock;
-// }
-
 int open_dgram_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
 {
     int client_sock = socket(server_addr->sa_family, SOCK_DGRAM, 0);
