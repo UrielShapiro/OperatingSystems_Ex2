@@ -394,7 +394,15 @@ int main(int argc, char *argv[])
         switch (c)
         {
         case 't':
-            alarm(atoi(optarg));
+            try
+            {
+                alarm(std::stoi(optarg));
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "Error in timeout argument: " + std::string(e.what()) << std::endl;
+            }
+
             break;
 
         case 'e':
