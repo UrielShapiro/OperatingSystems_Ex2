@@ -9,6 +9,7 @@
 #include <vector>
 #include <sys/un.h>
 
+// the maximum length of a string representing a port
 #define MAX_PORT_SIZE 6
 
 int open_dgram_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
@@ -496,16 +497,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (command == NULL)
-    {
-        print_usage(argv[0]);
-        std::cerr << "ERROR: Command not found" << std::endl;
-        free(output);
-        free(input);
-        free(both);
-        return 1;
-    }
-
     fflush(stdin);
     fflush(stdout);
     int input_fd = STDIN_FILENO, output_fd = STDOUT_FILENO;
@@ -560,31 +551,63 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (dup2(input_fd, STDIN_FILENO) < 0)
+    if (command == NULL)
     {
-        perror("Error duping input file descriptor");
-        free(output);
-        free(input);
-        free(both);
-        return 1;
-    }
-    if (dup2(output_fd, STDOUT_FILENO) < 0)
-    {
-        perror("Error duping output file descriptor");
-        free(output);
-        free(input);
-        free(both);
-        return 1;
-    }
+        char buffer[1024];
+        if (fork() == 0)
+        {
+            while (1)
+            {
 
-    if (system(command) < 0)
+                ssize_t n_read = read(input_fd, buffer, sizeof(buffer));
+                if (n_read == 0)
+                {
+                    break;
+                }
+                write(STDOUT_FILENO, buffer, n_read);
+            }
+        }
+        else
+        {
+            while (1)
+            {
+                ssize_t n_read = read(STDIN_FILENO, buffer, sizeof(buffer));
+                if (n_read == 0)
+                {
+                    break;
+                }
+                write(output_fd, buffer, n_read);
+            }
+        }
+    }
+    else
     {
-        perror("ERROR: On command execution (system(3))");
-        std::cerr << "INFO: Command was \"" << command << "\"" << std::endl;
-        free(output);
-        free(input);
-        free(both);
-        return 1;
+        if (dup2(input_fd, STDIN_FILENO) < 0)
+        {
+            perror("Error duping input file descriptor");
+            free(output);
+            free(input);
+            free(both);
+            return 1;
+        }
+        if (dup2(output_fd, STDOUT_FILENO) < 0)
+        {
+            perror("Error duping output file descriptor");
+            free(output);
+            free(input);
+            free(both);
+            return 1;
+        }
+
+        if (system(command) < 0)
+        {
+            perror("ERROR: On command execution (system(3))");
+            std::cerr << "INFO: Command was \"" << command << "\"" << std::endl;
+            free(output);
+            free(input);
+            free(both);
+            return 1;
+        }
     }
 
     for (int socket : sockets)
