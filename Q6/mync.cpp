@@ -356,12 +356,6 @@ int piper(void *arg)
 
 int main(int argc, char *argv[])
 {
-    if (argc < 3)
-    {
-        std::cerr << "Not enough arguments provided" << std::endl;
-        return 1;
-    }
-
     connection *input = NULL;
     connection *output = NULL;
     connection *both = NULL;
