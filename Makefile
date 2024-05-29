@@ -22,7 +22,7 @@ $(Q4_mync): $(Q4_mync).cpp
 	$(CXX) $(CXX_FLAGS) -o $@ $<
 
 $(Q6_mync): $(Q6_mync).cpp
-	$(CXX) $(CXX_FLAGS) -o $@ $<
+	$(CXX) $(CXX_FLAGS) -o $@ $< -lpthread
 
 
 clean:
