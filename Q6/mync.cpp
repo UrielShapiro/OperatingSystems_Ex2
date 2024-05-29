@@ -551,6 +551,10 @@ int main(int argc, char *argv[])
         }
     }
 
+    free(output);
+    free(input);
+    free(both);
+
     if (command == NULL)
     {
         char buffer[1024];
@@ -585,17 +589,11 @@ int main(int argc, char *argv[])
         if (dup2(input_fd, STDIN_FILENO) < 0)
         {
             perror("Error duping input file descriptor");
-            free(output);
-            free(input);
-            free(both);
             return 1;
         }
         if (dup2(output_fd, STDOUT_FILENO) < 0)
         {
             perror("Error duping output file descriptor");
-            free(output);
-            free(input);
-            free(both);
             return 1;
         }
 
@@ -603,9 +601,6 @@ int main(int argc, char *argv[])
         {
             perror("ERROR: On command execution (system(3))");
             std::cerr << "INFO: Command was \"" << command << "\"" << std::endl;
-            free(output);
-            free(input);
-            free(both);
             return 1;
         }
     }
