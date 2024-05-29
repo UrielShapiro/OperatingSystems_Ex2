@@ -505,11 +505,12 @@ int main(int argc, char *argv[])
             }
             catch (const std::runtime_error &e)
             {
-                std::cerr << "Error finding hostname" << e.what() << std::endl;
+                std::cerr << "Error finding hostname: " << e.what() << std::endl;
                 print_usage(argv[0]);
                 free(output);
                 free(input);
                 free(both);
+                return 1;
             }
             break;
 
