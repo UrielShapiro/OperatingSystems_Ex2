@@ -75,20 +75,22 @@ int open_dgram_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
         throw std::runtime_error("Error opening a UDP client socket");
     }
     sockets_arr.push_back(client_sock);
+    socklen_t server_addr_len;
     if (server_addr->sa_family == AF_UNIX)
     {
-        socklen_t server_addr_len = sizeof(struct sockaddr_un);
-        if (connect(client_sock, (struct sockaddr *)server_addr, server_addr_len) < 0)
-        {
-            throw std::runtime_error("Error connecting to the server socket: " + std::string(strerror(errno)));
-        }
+        server_addr_len = sizeof(struct sockaddr_un);
+    }
+    else if (server_addr->sa_family == AF_INET)
+    {
+        server_addr_len = sizeof(struct sockaddr_in);
     }
     else
     {
-        if (connect(client_sock, (struct sockaddr *)server_addr, sizeof(*server_addr)) < 0)
-        {
-            throw std::runtime_error("Error connecting to the server socket: " + std::string(strerror(errno)));
-        }
+        throw std::runtime_error("Unkown sa_family");
+    }
+    if (connect(client_sock, (struct sockaddr *)server_addr, server_addr_len) < 0)
+    {
+        throw std::runtime_error("Error connecting to the server socket: " + std::string(strerror(errno)));
     }
 
     return client_sock;
