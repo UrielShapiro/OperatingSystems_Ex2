@@ -124,9 +124,9 @@ int open_stream_server(sockaddr *server_address, std::vector<int> &sockets_arr)
 
     if (server_address->sa_family == AF_UNIX)
     {
-        if (unlink(((struct sockaddr_un *)server_address)->sun_path) < 0)
+        if (unlink(((struct sockaddr_un *)server_address)->sun_path) < 0 && errno != ENOENT)
         {
-            throw std::runtime_error("Error unlinking UDS file");
+            throw std::runtime_error("Error unlinking UDS file: " + std::string(strerror(errno)));
         }
     }
     else
@@ -167,9 +167,9 @@ int open_dgram_server(sockaddr *server_address, std::vector<int> &sockets_arr)
 
     if (server_address->sa_family == AF_UNIX)
     {
-        if (unlink(((struct sockaddr_un *)server_address)->sun_path) < 0)
+        if (unlink(((struct sockaddr_un *)server_address)->sun_path) < 0 && errno != ENOENT)
         {
-            throw std::runtime_error("Error unlinking UDS file");
+            throw std::runtime_error("Error unlinking UDS file: " + std::string(strerror(errno)));
         }
     }
     else
