@@ -8,6 +8,7 @@
 #include <netdb.h>
 #include <vector>
 #include <sys/un.h>
+#include <threads.h>
 
 // the maximum length of a string representing a port
 #define MAX_PORT_SIZE 6
@@ -320,6 +321,39 @@ int setup_connection(connection *conn, std::vector<int> &sockets)
     }
 }
 
+int piper(void *arg)
+{
+    int *fds = (int *) arg;
+    int read_fd = fds[0], write_fd = fds[1];
+    char buffer[1024]; // TODO: magic number
+    while (true)
+    {
+        ssize_t n_read = read(read_fd, buffer, sizeof(buffer));
+        if (n_read < 0)
+        {
+            return 1;
+        }
+        if (n_read == 0)
+        {
+            return 0;
+        }
+        ssize_t n_written = write(write_fd, buffer, n_read);
+        if (n_written < 0)
+        {
+            return 1;
+        }
+        if (n_written == 0)
+        {
+            return 0;
+        }
+        if (n_written < n_read)
+        {
+            // TODO: write more?
+        }
+    }
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     if (argc < 3)
@@ -557,32 +591,17 @@ int main(int argc, char *argv[])
 
     if (command == NULL)
     {
-        char buffer[1024];
-        if (fork() == 0)
-        {
-            while (1)
-            {
-
-                ssize_t n_read = read(input_fd, buffer, sizeof(buffer));
-                if (n_read == 0)
-                {
-                    break;
-                }
-                write(STDOUT_FILENO, buffer, n_read);
-            }
-        }
-        else
-        {
-            while (1)
-            {
-                ssize_t n_read = read(STDIN_FILENO, buffer, sizeof(buffer));
-                if (n_read == 0)
-                {
-                    break;
-                }
-                write(output_fd, buffer, n_read);
-            }
-        }
+        // run piper(input_fd, STDOUT_FILENO) & piper(STDIN_FILENO, output_fd)
+        thrd_t input_piper;
+        int input_fds[2] = {input_fd, STDOUT_FILENO};
+        thrd_create(&input_piper, piper, input_fds);
+        thrd_t output_piper;
+        int output_fds[2] = {STDIN_FILENO, output_fd};
+        thrd_create(&output_piper, piper, output_fds);
+        int res;
+        thrd_join(input_piper, &res);
+        thrd_join(output_piper, &res);
+        // TODO: check *res?
     }
     else
     {
