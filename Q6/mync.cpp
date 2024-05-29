@@ -12,6 +12,8 @@
 
 // the maximum length of a string representing a port
 #define MAX_PORT_SIZE 6
+// used when there is no -e option, currently stored on stack so avoid sized too large
+#define PIPER_BUFFER_SIZE 1024
 
 int open_dgram_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
 {
@@ -325,7 +327,7 @@ int piper(void *arg)
 {
     int *fds = (int *) arg;
     int read_fd = fds[0], write_fd = fds[1];
-    char buffer[1024]; // TODO: magic number
+    char buffer[PIPER_BUFFER_SIZE];
     while (true)
     {
         ssize_t n_read = read(read_fd, buffer, sizeof(buffer));
