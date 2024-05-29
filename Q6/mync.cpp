@@ -279,6 +279,16 @@ connection *parse_connection(char *arg)
         }
         strncpy(port, arg + 4, MAX_PORT_SIZE);
 
+        try
+        {
+            std::stoi(port);
+        }
+        catch (const std::exception &e)
+        {
+            free(port);
+            throw std::invalid_argument("Invalid port number provided in server specifier");
+        }
+
         hints.ai_flags |= AI_PASSIVE;
 
         result->is_server = true;
@@ -299,6 +309,16 @@ connection *parse_connection(char *arg)
             throw std::invalid_argument("No port provided in client specifier");
         }
         strncpy(port, comma + 1, MAX_PORT_SIZE);
+
+        try
+        {
+            std::stoi(port);
+        }
+        catch (const std::exception &e)
+        {
+            free(port);
+            throw std::invalid_argument("Invalid port number provided in client specifier");
+        }
 
         hostname = (char *)malloc(INET_ADDRSTRLEN); // IPv6: max(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)
 
