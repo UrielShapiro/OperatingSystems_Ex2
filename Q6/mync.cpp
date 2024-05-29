@@ -72,7 +72,7 @@ int open_dgram_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
     int client_sock = socket(server_addr->sa_family, SOCK_DGRAM, 0);
     if (client_sock < 0)
     {
-        throw std::runtime_error("Error opening a UDP client socket");
+        throw std::runtime_error("Error opening a UDP client socket: " + std::string(strerror(errno)));
     }
     sockets_arr.push_back(client_sock);
     socklen_t server_addr_len;
@@ -101,13 +101,13 @@ int open_stream_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
     int client_sock = socket(server_addr->sa_family, SOCK_STREAM, 0);
     if (client_sock < 0)
     {
-        throw std::runtime_error("Error opening a client socket");
+        throw std::runtime_error("Error opening a client socket: " + std::string(strerror(errno)));
     }
     sockets_arr.push_back(client_sock);
 
     if (connect(client_sock, (struct sockaddr *)server_addr, sizeof(*server_addr)) < 0)
     {
-        throw std::runtime_error("Error connecting to the server socket");
+        throw std::runtime_error("Error connecting to the server socket: " + std::string(strerror(errno)));
     }
 
     return client_sock;
@@ -118,7 +118,7 @@ int open_stream_server(sockaddr *server_address, std::vector<int> &sockets_arr)
     int server_sock = socket(server_address->sa_family, SOCK_STREAM, 0);
     if (server_sock < 0)
     {
-        throw std::runtime_error("Error opening a server stream");
+        throw std::runtime_error("Error opening a server stream: " + std::string(strerror(errno)));
     }
     sockets_arr.push_back(server_sock);
 
@@ -134,7 +134,7 @@ int open_stream_server(sockaddr *server_address, std::vector<int> &sockets_arr)
         int reuse = 1;
         if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
         {
-            throw std::runtime_error("Error setting socket option SO_REUSEADDR");
+            throw std::runtime_error("Error setting socket option SO_REUSEADDR: " + std::string(strerror(errno)));
         }
     }
     if (bind(server_sock, (struct sockaddr *)server_address, sizeof(*server_address)) < 0)
@@ -143,13 +143,13 @@ int open_stream_server(sockaddr *server_address, std::vector<int> &sockets_arr)
     }
     if (listen(server_sock, 1) < 0)
     {
-        throw std::runtime_error("Error listening on server socket");
+        throw std::runtime_error("Error listening on server socket: " + std::string(strerror(errno)));
     }
 
     int client_socket = accept(server_sock, NULL, NULL);
     if (client_socket < 0)
     {
-        throw std::runtime_error("Error accepting client");
+        throw std::runtime_error("Error accepting client: " + std::string(strerror(errno)));
     }
     sockets_arr.push_back(client_socket);
 
@@ -161,7 +161,7 @@ int open_dgram_server(sockaddr *server_address, std::vector<int> &sockets_arr)
     int server_sock = socket(server_address->sa_family, SOCK_DGRAM, 0);
     if (server_sock < 0)
     {
-        throw std::runtime_error("Error opening a UDP server socket");
+        throw std::runtime_error("Error opening a UDP server socket: " + std::string(strerror(errno)));
     }
     sockets_arr.push_back(server_sock);
 
@@ -177,12 +177,12 @@ int open_dgram_server(sockaddr *server_address, std::vector<int> &sockets_arr)
         int reuse = 1;
         if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
         {
-            throw std::runtime_error("Error setting socket option SO_REUSEADDR");
+            throw std::runtime_error("Error setting socket option SO_REUSEADDR: " + std::string(strerror(errno)));
         }
     }
     if (bind(server_sock, (struct sockaddr *)server_address, sizeof(*server_address)) < 0)
     {
-        throw std::runtime_error("Error binding the UDP server socket");
+        throw std::runtime_error("Error binding the UDP server socket: " + std::string(strerror(errno)));
     }
 
     return server_sock;
@@ -324,7 +324,7 @@ connection *parse_connection(char *arg)
     {
         free(port);
         free(hostname);
-        throw std::runtime_error(gai_strerror(error));
+        throw std::runtime_error("Error getting address info: " + std::string(gai_strerror(error)));
     }
 
     memcpy(&result->addr, addrinfo_ret->ai_addr, sizeof(result->addr));
