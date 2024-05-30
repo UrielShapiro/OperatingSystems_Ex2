@@ -216,7 +216,7 @@ connection *parse_connection(char *arg)
     char *hostname = NULL, *port = (char *)malloc(MAX_PORT_SIZE);
 
     hints.ai_family = AF_INET;       // TODO: Consider supporting IPv6
-    hints.ai_flags |= AI_ADDRCONFIG; // Returns IPv6 addresses only if your PC is compatible.
+    hints.ai_flags |= AI_ADDRCONFIG | AI_NUMERICSERV; // Returns IPv6 addresses only if your PC is compatible.
 
     if (arg[3] == 'S')
     {
@@ -375,7 +375,9 @@ int main(int argc, char *argv[])
             }
             catch (const std::exception &e)
             {
-                std::cerr << "Error in timeout argument: " + std::string(e.what()) << std::endl;
+                std::cerr << "Error in timeout argument: Please enter a number" << std::endl;
+                print_usage(argv[0]);
+                return 1;
             }
 
             break;
