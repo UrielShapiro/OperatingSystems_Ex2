@@ -87,7 +87,7 @@ int open_stream_server(sockaddr *server_address, std::vector<int> &sockets_arr)
     }
     if (bind(server_sock, (struct sockaddr *)server_address, sizeof(*server_address)) < 0)
     {
-        throw std::runtime_error("Error binding the UDS server socket: " + std::string(strerror(errno)));
+        throw std::runtime_error("Error binding the server socket: " + std::string(strerror(errno)));
     }
     if (listen(server_sock, 1) < 0)
     {
