@@ -215,7 +215,7 @@ connection *parse_connection(char *arg)
 
     char *hostname = NULL, *port = (char *)malloc(MAX_PORT_SIZE);
 
-    hints.ai_family = AF_INET;       // TODO: Consider supporting IPv6
+    hints.ai_family = AF_INET;
     hints.ai_flags |= AI_ADDRCONFIG | AI_NUMERICSERV; // Returns IPv6 addresses only if your PC is compatible.
 
     if (arg[3] == 'S')
@@ -229,7 +229,8 @@ connection *parse_connection(char *arg)
 
         try
         {
-            std::stoi(port);
+            if (std::stoi(port) < 0)
+                throw std::exception();
         }
         catch (const std::exception &e)
         {
@@ -268,7 +269,7 @@ connection *parse_connection(char *arg)
             throw std::invalid_argument("Invalid port number provided in client specifier");
         }
 
-        hostname = (char *)malloc(INET_ADDRSTRLEN); // IPv6: max(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)
+        hostname = (char *)malloc(INET_ADDRSTRLEN);
 
         if (comma == arg + 4)
         {
@@ -325,7 +326,7 @@ int setup_connection(connection *conn, std::vector<int> &sockets)
 
 int piper(void *arg)
 {
-    int *fds = (int *) arg;
+    int *fds = (int *)arg;
     int read_fd = fds[0], write_fd = fds[1];
     char buffer[PIPER_BUFFER_SIZE];
     while (true)
@@ -614,7 +615,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        if (system(command) < 0)
+        if (system(command) != 0)
         {
             perror("ERROR: On command execution (system(3))");
             std::cerr << "INFO: Command was \"" << command << "\"" << std::endl;
