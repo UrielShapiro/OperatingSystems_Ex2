@@ -13,7 +13,10 @@ Q1/ttt
 # object files
 *.o
 
-#gcov files
+# gcov files
 *.gcno
 *.gcov
 *.gcda
+
+# test executable
+Tests/test

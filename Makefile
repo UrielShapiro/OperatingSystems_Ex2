@@ -36,7 +36,7 @@ $(Test): $(Test).o
 	$(CXX) $(GCOV_FLAGS) $(CXX_FLAGS) -o $@ $<
 
 $(Test).o: $(Test).cpp
-	$(CXX) $(GCOV_FLAGS) $(CXX_FLAGS) -c -o $@ $<
+	$(CXX) -Wno-write-strings $(GCOV_FLAGS) $(CXX_FLAGS) -c -o $@ $<
 
 clean:
 	rm -f *.o $(TTT) $(Q2_mync) $(Q3_mync) $(Q4_mync) $(Q6_mync) $(Test) *.gcov *.gcno *.gcda
