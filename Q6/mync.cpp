@@ -657,7 +657,8 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        if (system(command) != 0)
+        int wstatus;
+        if (((wstatus = system(command)) != 0 && errno != 0) || WEXITSTATUS(wstatus) == 127)
         {
             perror("ERROR: On command execution (system(3))");
             std::cerr << "INFO: Command was \"" << command << "\"" << std::endl;
