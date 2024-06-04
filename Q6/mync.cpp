@@ -14,7 +14,7 @@
 
 // the maximum length of a string representing a port
 #define MAX_PORT_SIZE 6
-// used when there is no -e option, currently stored on stack so avoid sized too large
+// used when there is no -e option, currently stored on stack so avoid sizes too large
 #define PIPER_BUFFER_SIZE 1024
 
 class Cleanup
