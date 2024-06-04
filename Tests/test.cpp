@@ -28,18 +28,27 @@ void run_socat(char *connection, const char *command)
 
 void run_command(char *const *argv, char *output = NULL, char *input = NULL, unsigned int timeout = 0)
 {
-    int file;
     pid_t child;
     if ((child = fork()) == 0)
     {
         if (output)
         {
-            file = open(output, O_WRONLY | O_CREAT | O_TRUNC, 0644); // 0644 sets the permissions
+            int file = open(output, O_WRONLY | O_CREAT | O_TRUNC, 0644); // 0644 sets the permissions
+            if (file < 0)
+            {
+                perror("open(2)");
+                exit(1);
+            }
             dup2(file, STDOUT_FILENO);
         }
         if (input)
         {
-            file = open(input, O_RDONLY); // 0644 sets the permissions
+            int file = open(input, O_RDONLY); // 0644 sets the permissions
+            if (file < 0)
+            {
+                perror("open(2)");
+                exit(1);
+            }
             dup2(file, STDIN_FILENO);
         }
         execvp(PROGRAM_NAME, argv);
@@ -53,7 +62,6 @@ void run_command(char *const *argv, char *output = NULL, char *input = NULL, uns
     waitpid(child, &wstatus, 0);
     CHECK(WIFEXITED(wstatus));
     CHECK(WEXITSTATUS(wstatus) == 0);
-    close(file);
 }
 
 TEST_CASE("-i")
