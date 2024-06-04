@@ -45,6 +45,7 @@ public:
     {
         unlink(filename);
         free(filename);
+        filename = NULL;
     }
 };
 
@@ -394,7 +395,7 @@ void cleanup_all(int signum)
     {
         cu->cleanup();
     }
-    exit(0);
+    kill(0, SIGALRM);
 }
 
 int main(int argc, char *argv[])
