@@ -530,6 +530,7 @@ int main(int argc, char *argv[])
                 free(output);
                 free(input);
                 free(both);
+                return 1;
             }
             break;
         case 'b':
