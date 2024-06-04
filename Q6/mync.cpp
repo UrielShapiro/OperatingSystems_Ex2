@@ -408,6 +408,7 @@ void cleanup_all(int signum)
         cu->cleanup();
     }
     kill(0, SIGALRM);
+    exit(0);
 }
 
 int main(int argc, char *argv[])
