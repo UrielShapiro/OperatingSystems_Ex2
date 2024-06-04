@@ -320,7 +320,7 @@ TEST_CASE("invalid inputs")
 {
     SUBCASE("unkown executable")
     {
-        CHECK(system(PROGRAM_NAME " -e ./nonexistant 2> /dev/null") != 0);
+        CHECK(system(PROGRAM_NAME " -e ./nonexistent 2> /dev/null") != 0);
     }
     SUBCASE("double connections")
     {
@@ -374,5 +374,14 @@ TEST_CASE("invalid inputs")
     SUBCASE("unkown hostname")
     {
         CHECK(system(PROGRAM_NAME " -b TCPCwww.nezeristhebest.com,80 2> /dev/null") != 0);
+    }
+}
+
+TEST_CASE("-t" * doctest::timeout(2))
+{
+    if (fork() == 0)
+    {
+        CHECK(system(PROGRAM_NAME " -t 1") == 0);
+        exit(0);
     }
 }
