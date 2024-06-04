@@ -240,7 +240,7 @@ connection *parse_connection(char *arg)
             throw std::invalid_argument("Unkown connection type specifier");
         }
         struct sockaddr_un *addr_unix = (struct sockaddr_un *)&result->addr;
-        if (strlen(arg + 5) > sizeof(addr_unix->sun_path))
+        if (strlen(arg + 5) + 1 > sizeof(addr_unix->sun_path))
         {
             free(result);
             throw std::invalid_argument("UDS path is too long");
