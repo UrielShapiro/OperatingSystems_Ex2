@@ -394,6 +394,7 @@ void cleanup_all(int signum)
     {
         cu->cleanup();
     }
+    exit(0);
 }
 
 int main(int argc, char *argv[])
@@ -663,7 +664,10 @@ int main(int argc, char *argv[])
         }
     }
 
-    cleanup_all(SIGALRM);
+    for (auto &cu : to_cleanup)
+    {
+        cu->cleanup();
+    }
 
     return 0;
 }
