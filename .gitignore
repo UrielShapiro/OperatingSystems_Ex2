@@ -20,3 +20,6 @@ Q1/ttt
 
 # test executable
 Tests/test
+
+# test outputs
+Tests/outputs/*
