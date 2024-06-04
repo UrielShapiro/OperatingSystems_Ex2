@@ -9,19 +9,28 @@
 
 #define SLEEP_TIME 2
 #define USLEEP_TIME 20000
-#define PIPE_READ_END 0
-#define PIPE_WRITE_END 1
 #define PROGRAM_NAME "Q6/mync"
 #define MAX_COMMAND_LENGTH 256
 
-void run_socat(char *connection, const char *command)
+void run_socat(char *connection, const char *command, unsigned int timeout = SLEEP_TIME)
 {
-    char runthis[MAX_COMMAND_LENGTH] = {0};
-    snprintf(runthis, MAX_COMMAND_LENGTH, "socat -t%d %s %s", SLEEP_TIME, connection, command);
-    std::cout << runthis << std::endl;
     if (fork() == 0)
     {
-        system(runthis);
+        char runthis[MAX_COMMAND_LENGTH] = {0};
+        snprintf(runthis, MAX_COMMAND_LENGTH, "socat -t%d %s %s", SLEEP_TIME, connection, command);
+        pid_t child;
+        if ((child = fork()) == 0)
+        {
+            system(runthis);
+            exit(0);
+        }
+        if (timeout > 0)
+        {
+            sleep(timeout);
+            kill(child, SIGALRM);
+        }
+        int wstatus;
+        waitpid(child, &wstatus, 0);
         exit(0);
     }
 }
@@ -230,7 +239,7 @@ TEST_CASE("-o")
         char *const connection2 = "TCP-LISTEN:6000,reuseaddr";
 
         char *const argv[] = {PROGRAM_NAME, "-e", command, connection_type, connection1, NULL};
-        
+
         run_socat(connection2, "OPEN:Tests/outputs/test8.txt,creat,trunc");
         usleep(USLEEP_TIME);
         if (fork() == 0)
@@ -243,90 +252,68 @@ TEST_CASE("-o")
         CHECK(system("cmp Tests/outputs/test8.txt Tests/expected_output/test8.txt") == 0);
     }
 
-    // SUBCASE("-i UDPS")
-    // {
-    //     char *const command = "cat";
-    //     char *const connection_type = "-i";
-    //     char *const connection1 = "UDPS4000";
-    //     char *const connection2 = "UDP:localhost:4000";
-    //     char *const output = "Tests/outputs/test2.txt";
+    SUBCASE("-o UDPC")
+    {
+        char *const command = "cat";
+        char *const connection_type = "-o";
+        char *const connection1 = "UDPClocalhost,4000";
+        char *const connection2 = "UDP-RECVFROM:4000,reuseaddr";
 
-    //     char *const argv[] = {PROGRAM_NAME, "-e", command, connection_type, connection1, NULL};
+        char *const argv[] = {PROGRAM_NAME, "-e", command, connection_type, connection1, NULL};
 
-    //     if (fork() == 0)
-    //     {
-    //         run_command(argv, output, SLEEP_TIME);
-    //         exit(0);
-    //     }
-    //     usleep(500000);
-    //     run_socat(connection2, "Tests/inputs/test2.txt");
+        run_socat(connection2, "OPEN:Tests/outputs/test9.txt,creat,trunc");
+        usleep(USLEEP_TIME);
+        if (fork() == 0)
+        {
+            run_command(argv, NULL, "Tests/inputs/test9.txt", SLEEP_TIME);
+            exit(0);
+        }
+        usleep(10 * USLEEP_TIME);
 
-    //     CHECK(system("cmp Tests/outputs/test2.txt Tests/expected_output/test2.txt") == 0);
-    // }
+        CHECK(system("cmp Tests/outputs/test9.txt Tests/expected_output/test9.txt") == 0);
+    }
 
-    // SUBCASE("-i UDSSS")
-    // {
-    //     char *const command = "cat";
-    //     char *const connection_type = "-i";
-    //     char *const connection1 = "UDSSS/tmp/udss";
-    //     char *const connection2 = "UNIX-CONNECT:/tmp/udss";
-    //     char *const output = "Tests/outputs/test3.txt";
+    SUBCASE("-o UDSCD")
+    {
+        char *const command = "cat";
+        char *const connection_type = "-o";
+        char *const connection1 = "UDSCD/tmp/udscd";
+        char *const connection2 = "UNIX-RECVFROM:/tmp/udscd";
 
-    //     char *const argv[] = {PROGRAM_NAME, "-e", command, connection_type, connection1, NULL};
+        char *const argv[] = {PROGRAM_NAME, "-e", command, connection_type, connection1, NULL};
 
-    //     if (fork() == 0)
-    //     {
-    //         run_command(argv, output, SLEEP_TIME);
-    //         exit(0);
-    //     }
-    //     usleep(500000);
-    //     run_socat(connection2, "Tests/inputs/test3.txt");
+        run_socat(connection2, "OPEN:Tests/outputs/test10.txt,creat,trunc");
+        usleep(USLEEP_TIME);
+        if (fork() == 0)
+        {
+            run_command(argv, NULL, "Tests/inputs/test10.txt", SLEEP_TIME);
+            exit(0);
+        }
+        usleep(USLEEP_TIME);
 
-    //     CHECK(system("cmp Tests/outputs/test3.txt Tests/expected_output/test3.txt") == 0);
-    // }
+        CHECK(system("cmp Tests/outputs/test10.txt Tests/expected_output/test10.txt") == 0);
+    }
 
-    // SUBCASE("-i UDSSD")
-    // {
-    //     char *const command = "cat";
-    //     char *const connection_type = "-i";
-    //     char *const connection1 = "UDSSD/tmp/udsd";
-    //     char *const connection2 = "UNIX-SENDTO:/tmp/udsd";
-    //     char *const output = "Tests/outputs/test5.txt";
+    SUBCASE("-o UDSCS")
+    {
+        char *const command = "cat";
+        char *const connection_type = "-o";
+        char *const connection1 = "UDSCS/tmp/udscs";
+        char *const connection2 = "UNIX-LISTEN:/tmp/udscs";
 
-    //     char *const argv[] = {PROGRAM_NAME, "-e", command, connection_type, connection1, NULL};
+        char *const argv[] = {PROGRAM_NAME, "-e", command, connection_type, connection1, NULL};
 
-    //     if (fork() == 0)
-    //     {
-    //         run_command(argv, output, SLEEP_TIME);
-    //         exit(0);
-    //     }
-    //     usleep(500000);
-    //     run_socat(connection2, "Tests/inputs/test5.txt");
+        run_socat(connection2, "OPEN:Tests/outputs/test11.txt,creat,trunc");
+        usleep(USLEEP_TIME);
+        if (fork() == 0)
+        {
+            run_command(argv, NULL, "Tests/inputs/test11.txt", SLEEP_TIME);
+            exit(0);
+        }
+        usleep(USLEEP_TIME);
 
-    //     CHECK(system("cmp Tests/outputs/test5.txt Tests/expected_output/test5.txt") == 0);
-    // }
-
-    // SUBCASE("-i UDSCS")
-    // {
-    //     char *const command = "cat";
-    //     char *const connection_type = "-i";
-    //     char *const connection1 = "UDSCS/tmp/udsc";
-    //     char *const connection2 = "UNIX-LISTEN:/tmp/udsc";
-    //     char *const output = "Tests/outputs/test6.txt";
-
-    //     char *const argv[] = {PROGRAM_NAME, "-e", command, connection_type, connection1, NULL};
-
-    //     run_socat(connection2, "Tests/inputs/test6.txt");
-    //     usleep(500000);
-    //     if (fork() == 0)
-    //     {
-    //         run_command(argv, output, SLEEP_TIME);
-    //         exit(0);
-    //     }
-    //     usleep(500000);
-
-    //     CHECK(system("cmp Tests/outputs/test6.txt Tests/expected_output/test6.txt") == 0);
-    // }
+        CHECK(system("cmp Tests/outputs/test11.txt Tests/expected_output/test11.txt") == 0);
+    }
 }
 
 TEST_CASE("invalid inputs")
