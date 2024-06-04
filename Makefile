@@ -11,10 +11,17 @@ Test = Tests/test
 all: $(TTT) $(Q2_mync) $(Q3_mync) $(Q4_mync) $(Q6_mync) $(Test)
 
 gcov: $(Test) $(Q6_mync)
-	-mkdir Tests/outputs
-	$(Test)
+	-make test
 	gcov mync.cpp
 	cat mync.cpp.gcov
+
+test: $(Test)
+	-mkdir Tests/outputs
+	-killall mync
+	-find /tmp/uds* -maxdepth 1 -exec unlink '{}' \;
+	$(Test)
+	sleep 10
+	-killall cat
 
 $(TTT): $(TTT).cpp
 	$(CXX) $(CXX_FLAGS) -o $@ $<
@@ -42,4 +49,4 @@ clean:
 
 
 .SUFFIXES:
-.PHONY: gcov
+.PHONY: gcov all clean test
