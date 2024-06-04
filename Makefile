@@ -8,10 +8,10 @@ Q4_mync = Q4/mync
 Q6_mync = Q6/mync
 Test = Tests/test
 
-
 all: $(TTT) $(Q2_mync) $(Q3_mync) $(Q4_mync) $(Q6_mync) $(Test)
 
 gcov: $(Test) $(Q6_mync)
+	-mkdir Tests/outputs
 	$(Test)
 	gcov mync.cpp
 	cat mync.cpp.gcov
