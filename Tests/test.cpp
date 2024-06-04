@@ -257,7 +257,7 @@ TEST_CASE("-o")
         char *const command = "cat";
         char *const connection_type = "-o";
         char *const connection1 = "UDPClocalhost,4000";
-        char *const connection2 = "UDP-RECVFROM:4000,reuseaddr";
+        char *const connection2 = "UDP-RECV:4000,reuseaddr";
 
         char *const argv[] = {PROGRAM_NAME, "-e", command, connection_type, connection1, NULL};
 
@@ -278,7 +278,7 @@ TEST_CASE("-o")
         char *const command = "cat";
         char *const connection_type = "-o";
         char *const connection1 = "UDSCD/tmp/udscd";
-        char *const connection2 = "UNIX-RECVFROM:/tmp/udscd";
+        char *const connection2 = "UNIX-RECV:/tmp/udscd";
 
         char *const argv[] = {PROGRAM_NAME, "-e", command, connection_type, connection1, NULL};
 
