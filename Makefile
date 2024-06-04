@@ -11,16 +11,16 @@ Test = Tests/test
 all: $(TTT) $(Q2_mync) $(Q3_mync) $(Q4_mync) $(Q6_mync) $(Test)
 
 gcov: $(Test) $(Q6_mync)
-	-make test
+	make test
 	gcov mync.cpp
 	cat mync.cpp.gcov
 
-test: $(Test)
+test: $(Test) $(Q6_mync)
 	-mkdir Tests/outputs
 	-killall mync
 	-find /tmp/uds* -maxdepth 1 -exec unlink '{}' \;
-	$(Test)
-	sleep 10
+	-bash -c "$(Test)"
+	wait
 	-killall cat
 
 $(TTT): $(TTT).cpp
