@@ -47,6 +47,5 @@ $(Test).o: $(Test).cpp
 clean:
 	rm -f *.o $(TTT) $(Q2_mync) $(Q3_mync) $(Q4_mync) $(Q6_mync) $(Test) *.gcov *.gcno *.gcda
 
-
 .SUFFIXES:
 .PHONY: gcov all clean test
