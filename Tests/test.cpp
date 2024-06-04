@@ -325,21 +325,23 @@ TEST_CASE("invalid inputs")
     SUBCASE("double connections")
     {
         CHECK(system(PROGRAM_NAME " -b TCPClocalhost,5000 -i UDPS3000 2> /dev/null") != 0);
+        CHECK(system(PROGRAM_NAME " -i UDPS3000 -b TCPClocalhost,5000 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -i TCPClocalhost,5000 -i UDPS3000 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -b TCPClocalhost,5000 -o UDPS3000 2> /dev/null") != 0);
+        CHECK(system(PROGRAM_NAME " -o UDPS3000 -b TCPClocalhost,5000 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -o TCPClocalhost,5000 -o UDPS3000 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -b TCPClocalhost,5000 -b UDPS3000 2> /dev/null") != 0);
     }
     SUBCASE("invalid connection specifiers")
     {
-        CHECK(system(PROGRAM_NAME " -b HelloNezer 2> /dev/null") != 0);
+        CHECK(system(PROGRAM_NAME " -o HelloNezer 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -b hi 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -b TCP 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -b UDP 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -b TCPP 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -b UDPP 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -b UDSS 2> /dev/null") != 0);
-        CHECK(system(PROGRAM_NAME " -b TCPC5000 2> /dev/null") != 0);
+        CHECK(system(PROGRAM_NAME " -i TCPC5000 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -b TCPC,5000 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -b TCPClocalhost, 2> /dev/null") != 0);
         CHECK(system(PROGRAM_NAME " -b TCPClocalhost 2> /dev/null") != 0);
@@ -374,6 +376,13 @@ TEST_CASE("invalid inputs")
     SUBCASE("unkown hostname")
     {
         CHECK(system(PROGRAM_NAME " -b TCPCwww.nezeristhebest.com,80 2> /dev/null") != 0);
+        CHECK(system(PROGRAM_NAME " -o TCPCwww.nezeristhebest.com,80 2> /dev/null") != 0);
+        CHECK(system(PROGRAM_NAME " -i TCPCwww.nezeristhebest.com,80 2> /dev/null") != 0);
+    }
+    SUBCASE("UDS path too long")
+    {
+#define TOO_LONG_NAME "/tmp/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        CHECK(system(PROGRAM_NAME " -b UDSSS" TOO_LONG_NAME " 2> /dev/null") != 0);
     }
 }
 
@@ -384,4 +393,32 @@ TEST_CASE("-t" * doctest::timeout(2))
         CHECK(system(PROGRAM_NAME " -t 1") == 0);
         exit(0);
     }
+}
+
+TEST_CASE("No -e")
+{
+    char *const connection_type = "-i";
+    char *const connection1 = "TCPS5000";
+    char *const connection_type2 = "-o";
+    char *const connection2 = "TCPClocalhost,7000";
+
+    char *const tcpc = "TCP-CONNECT:localhost:5000";
+    char *const tcps = "TCP-LISTEN:7000,reuseaddr";
+
+    char *const argv[] = {PROGRAM_NAME, connection_type, connection1, connection_type2, connection2, NULL};
+
+    run_socat(tcps, "OPEN:Tests/outputs/test12o.txt,creat,trunc");
+    usleep(USLEEP_TIME);
+    if (fork() == 0)
+    {
+        run_command(argv, "Tests/outputs/test12i.txt", "Tests/inputs/test12o.txt", SLEEP_TIME);
+        exit(0);
+    }
+    usleep(USLEEP_TIME);
+    run_socat(tcpc, "OPEN:Tests/inputs/test12i.txt");
+
+    usleep(USLEEP_TIME);
+
+    CHECK(system("cmp Tests/outputs/test12i.txt Tests/expected_output/test12i.txt") == 0);
+    CHECK(system("cmp Tests/outputs/test12o.txt Tests/expected_output/test12o.txt") == 0);
 }
