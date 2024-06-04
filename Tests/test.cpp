@@ -17,7 +17,7 @@
 void run_socat(char *connection, const char *command)
 {
     char runthis[MAX_COMMAND_LENGTH] = {0};
-    snprintf(runthis, MAX_COMMAND_LENGTH, "socat -t1 %s %s", connection, command);
+    snprintf(runthis, MAX_COMMAND_LENGTH, "socat -t%d %s %s", SLEEP_TIME, connection, command);
     std::cout << runthis << std::endl;
     if (fork() == 0)
     {
@@ -47,9 +47,12 @@ void run_command(char *const *argv, char *output = NULL, char *input = NULL, uns
     if (timeout > 0)
     {
         sleep(timeout);
-        kill(child, SIGKILL);
+        kill(child, SIGALRM);
     }
-    waitpid(child, NULL, 0);
+    int wstatus;
+    waitpid(child, &wstatus, 0);
+    CHECK(WIFEXITED(wstatus));
+    CHECK(WEXITSTATUS(wstatus) == 0);
     close(file);
 }
 
