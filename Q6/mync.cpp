@@ -88,8 +88,20 @@ int open_stream_client(sockaddr *server_addr)
         throw std::runtime_error("Error opening a client socket: " + std::string(strerror(errno)));
     }
     to_cleanup.push_back(std::make_unique<SockCleanup>(SockCleanup(client_sock)));
-
-    if (connect(client_sock, (struct sockaddr *)server_addr, sizeof(*server_addr)) < 0)
+    socklen_t server_addr_len;
+    if (server_addr->sa_family == AF_UNIX)
+    {
+        server_addr_len = sizeof(struct sockaddr_un);
+    }
+    else if (server_addr->sa_family == AF_INET)
+    {
+        server_addr_len = sizeof(struct sockaddr_in);
+    }
+    else
+    {
+        throw std::runtime_error("Unkown sa_family");
+    }
+    if (connect(client_sock, (struct sockaddr *)server_addr, server_addr_len) < 0)
     {
         throw std::runtime_error("Error connecting to the server socket: " + std::string(strerror(errno)));
     }
