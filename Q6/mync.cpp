@@ -9,20 +9,55 @@
 #include <vector>
 #include <sys/un.h>
 #include <threads.h>
+#include <memory>
+#include <signal.h>
 
 // the maximum length of a string representing a port
 #define MAX_PORT_SIZE 6
 // used when there is no -e option, currently stored on stack so avoid sized too large
 #define PIPER_BUFFER_SIZE 1024
 
-int open_dgram_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
+class Cleanup
+{
+public:
+    virtual void cleanup() = 0;
+};
+
+class SockCleanup : public Cleanup
+{
+    int sockfd;
+
+public:
+    SockCleanup(int fd) : sockfd(fd) {}
+    void cleanup() override
+    {
+        close(sockfd);
+    }
+};
+
+class UDSCleanup : public Cleanup
+{
+    char *filename;
+
+public:
+    UDSCleanup(char *file) : filename(file) {}
+    void cleanup() override
+    {
+        unlink(filename);
+        free(filename);
+    }
+};
+
+std::vector<std::unique_ptr<Cleanup>> to_cleanup;
+
+int open_dgram_client(sockaddr *server_addr)
 {
     int client_sock = socket(server_addr->sa_family, SOCK_DGRAM, 0);
     if (client_sock < 0)
     {
         throw std::runtime_error("Error opening a UDP client socket: " + std::string(strerror(errno)));
     }
-    sockets_arr.push_back(client_sock);
+    to_cleanup.push_back(std::make_unique<SockCleanup>(SockCleanup(client_sock)));
     socklen_t server_addr_len;
     if (server_addr->sa_family == AF_UNIX)
     {
@@ -44,14 +79,14 @@ int open_dgram_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
     return client_sock;
 }
 
-int open_stream_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
+int open_stream_client(sockaddr *server_addr)
 {
     int client_sock = socket(server_addr->sa_family, SOCK_STREAM, 0);
     if (client_sock < 0)
     {
         throw std::runtime_error("Error opening a client socket: " + std::string(strerror(errno)));
     }
-    sockets_arr.push_back(client_sock);
+    to_cleanup.push_back(std::make_unique<SockCleanup>(SockCleanup(client_sock)));
 
     if (connect(client_sock, (struct sockaddr *)server_addr, sizeof(*server_addr)) < 0)
     {
@@ -61,21 +96,18 @@ int open_stream_client(sockaddr *server_addr, std::vector<int> &sockets_arr)
     return client_sock;
 }
 
-int open_stream_server(sockaddr *server_address, std::vector<int> &sockets_arr)
+int open_stream_server(sockaddr *server_address)
 {
     int server_sock = socket(server_address->sa_family, SOCK_STREAM, 0);
     if (server_sock < 0)
     {
         throw std::runtime_error("Error opening a server stream: " + std::string(strerror(errno)));
     }
-    sockets_arr.push_back(server_sock);
+    to_cleanup.push_back(std::make_unique<SockCleanup>(SockCleanup(server_sock)));
 
     if (server_address->sa_family == AF_UNIX)
     {
-        if (unlink(((struct sockaddr_un *)server_address)->sun_path) < 0 && errno != ENOENT)
-        {
-            throw std::runtime_error("Error unlinking UDS file: " + std::string(strerror(errno)));
-        }
+        to_cleanup.push_back(std::make_unique<UDSCleanup>(strdup(((sockaddr_un *)server_address)->sun_path)));
     }
     else
     {
@@ -99,26 +131,23 @@ int open_stream_server(sockaddr *server_address, std::vector<int> &sockets_arr)
     {
         throw std::runtime_error("Error accepting client: " + std::string(strerror(errno)));
     }
-    sockets_arr.push_back(client_socket);
+    to_cleanup.push_back(std::make_unique<SockCleanup>(SockCleanup(client_socket)));
 
     return client_socket;
 }
 
-int open_dgram_server(sockaddr *server_address, std::vector<int> &sockets_arr)
+int open_dgram_server(sockaddr *server_address)
 {
     int server_sock = socket(server_address->sa_family, SOCK_DGRAM, 0);
     if (server_sock < 0)
     {
-        throw std::runtime_error("Error opening a UDP server socket: " + std::string(strerror(errno)));
+        throw std::runtime_error("Error opening a datagram server socket: " + std::string(strerror(errno)));
     }
-    sockets_arr.push_back(server_sock);
+    to_cleanup.push_back(std::make_unique<SockCleanup>(SockCleanup(server_sock)));
 
     if (server_address->sa_family == AF_UNIX)
     {
-        if (unlink(((struct sockaddr_un *)server_address)->sun_path) < 0 && errno != ENOENT)
-        {
-            throw std::runtime_error("Error unlinking UDS file: " + std::string(strerror(errno)));
-        }
+        to_cleanup.push_back(std::make_unique<UDSCleanup>(strdup(((sockaddr_un *)server_address)->sun_path)));
     }
     else
     {
@@ -130,7 +159,7 @@ int open_dgram_server(sockaddr *server_address, std::vector<int> &sockets_arr)
     }
     if (bind(server_sock, (struct sockaddr *)server_address, sizeof(*server_address)) < 0)
     {
-        throw std::runtime_error("Error binding the UDP server socket: " + std::string(strerror(errno)));
+        throw std::runtime_error("Error binding the datagram server socket: " + std::string(strerror(errno)));
     }
 
     return server_sock;
@@ -305,20 +334,20 @@ connection *parse_connection(char *arg)
     return result;
 }
 
-int setup_connection(connection *conn, std::vector<int> &sockets)
+int setup_connection(connection *conn)
 {
     switch (conn->socktype)
     {
     case SOCK_STREAM:
         if (conn->is_server)
-            return open_stream_server(&conn->addr, sockets);
+            return open_stream_server(&conn->addr);
         else
-            return open_stream_client(&conn->addr, sockets);
+            return open_stream_client(&conn->addr);
     case SOCK_DGRAM:
         if (conn->is_server)
-            return open_dgram_server(&conn->addr, sockets);
+            return open_dgram_server(&conn->addr);
         else
-            return open_dgram_client(&conn->addr, sockets);
+            return open_dgram_client(&conn->addr);
     default:
         throw std::runtime_error("Invalid connection type");
     }
@@ -357,8 +386,22 @@ int piper(void *arg)
     return 0;
 }
 
+void cleanup_all(int signum)
+{
+    (void)signum;
+
+    for (auto &cu : to_cleanup)
+    {
+        cu->cleanup();
+    }
+}
+
 int main(int argc, char *argv[])
 {
+    struct sigaction cleanup_action = {};
+    cleanup_action.sa_handler = &cleanup_all;
+    sigaction(SIGALRM, &cleanup_action, NULL);
+
     connection *input = NULL;
     connection *output = NULL;
     connection *both = NULL;
@@ -534,13 +577,11 @@ int main(int argc, char *argv[])
     fflush(stdout);
     int input_fd = STDIN_FILENO, output_fd = STDOUT_FILENO;
 
-    std::vector<int> sockets;
-
     if (both != NULL)
     {
         try
         {
-            input_fd = output_fd = setup_connection(both, sockets);
+            input_fd = output_fd = setup_connection(both);
         }
         catch (const std::runtime_error &e)
         {
@@ -556,7 +597,7 @@ int main(int argc, char *argv[])
     {
         try
         {
-            input_fd = setup_connection(input, sockets);
+            input_fd = setup_connection(input);
         }
         catch (const std::runtime_error &e)
         {
@@ -572,7 +613,7 @@ int main(int argc, char *argv[])
     {
         try
         {
-            output_fd = setup_connection(output, sockets);
+            output_fd = setup_connection(output);
         }
         catch (const std::runtime_error &e)
         {
@@ -600,7 +641,6 @@ int main(int argc, char *argv[])
         int res;
         thrd_join(input_piper, &res);
         thrd_join(output_piper, &res);
-        // TODO: check *res?
     }
     else
     {
@@ -623,10 +663,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    for (int socket : sockets)
-    {
-        close(socket);
-    }
+    cleanup_all(SIGALRM);
 
     return 0;
 }
