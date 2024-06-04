@@ -1,0 +1,700 @@
+        -:    0:Source:Q6/mync.cpp
+        -:    0:Graph:mync.gcno
+        -:    0:Data:mync.gcda
+        -:    0:Runs:101
+        -:    1:#include <iostream>
+        -:    2:#include <cstring>
+        -:    3:#include <unistd.h>
+        -:    4:#include <sys/wait.h>
+        -:    5:#include <sys/socket.h>
+        -:    6:#include <netinet/in.h>
+        -:    7:#include <arpa/inet.h>
+        -:    8:#include <netdb.h>
+        -:    9:#include <vector>
+        -:   10:#include <sys/un.h>
+        -:   11:#include <threads.h>
+        -:   12:#include <memory>
+        -:   13:#include <signal.h>
+        -:   14:
+        -:   15:// the maximum length of a string representing a port
+        -:   16:#define MAX_PORT_SIZE 6
+        -:   17:// used when there is no -e option, currently stored on stack so avoid sizes too large
+        -:   18:#define PIPER_BUFFER_SIZE 1024
+        -:   19:
+        -:   20:class Cleanup
+        -:   21:{
+        -:   22:public:
+        -:   23:    virtual void cleanup() = 0;
+        -:   24:};
+        -:   25:
+        -:   26:class SockCleanup : public Cleanup
+        -:   27:{
+        -:   28:    int sockfd;
+        -:   29:
+        -:   30:public:
+       34:   31:    SockCleanup(int fd) : sockfd(fd) {}
+       34:   32:    void cleanup() override
+        -:   33:    {
+       34:   34:        close(sockfd);
+       34:   35:    }
+        -:   36:};
+        -:   37:
+        -:   38:class UDSCleanup : public Cleanup
+        -:   39:{
+        -:   40:    char *filename;
+        -:   41:
+        -:   42:public:
+        4:   43:    UDSCleanup(char *file) : filename(file) {}
+        4:   44:    void cleanup() override
+        -:   45:    {
+        4:   46:        unlink(filename);
+        4:   47:        free(filename);
+        4:   48:        filename = NULL; // to not have dangling pointer
+        4:   49:    }
+        -:   50:};
+        -:   51:
+        -:   52:std::vector<std::unique_ptr<Cleanup>> to_cleanup;
+        -:   53:
+        4:   54:int open_dgram_client(sockaddr *server_addr)
+        -:   55:{
+        4:   56:    int client_sock = socket(server_addr->sa_family, SOCK_DGRAM, 0);
+        4:   57:    if (client_sock < 0)
+        -:   58:    {
+    #####:   59:        throw std::runtime_error("Error opening a UDP client socket: " + std::string(strerror(errno)));
+        -:   60:    }
+        4:   61:    to_cleanup.push_back(std::make_unique<SockCleanup>(SockCleanup(client_sock)));
+        -:   62:    socklen_t server_addr_len;
+        4:   63:    if (server_addr->sa_family == AF_UNIX)
+        -:   64:    {
+        2:   65:        server_addr_len = sizeof(struct sockaddr_un);
+        -:   66:    }
+        2:   67:    else if (server_addr->sa_family == AF_INET)
+        -:   68:    {
+        2:   69:        server_addr_len = sizeof(struct sockaddr_in);
+        -:   70:    }
+        -:   71:    else
+        -:   72:    {
+    #####:   73:        throw std::runtime_error("Unkown sa_family");
+        -:   74:    }
+        4:   75:    if (connect(client_sock, (struct sockaddr *)server_addr, server_addr_len) < 0)
+        -:   76:    {
+    #####:   77:        throw std::runtime_error("Error connecting to the server socket: " + std::string(strerror(errno)));
+        -:   78:    }
+        -:   79:
+        4:   80:    return client_sock;
+        -:   81:}
+        -:   82:
+       10:   83:int open_stream_client(sockaddr *server_addr)
+        -:   84:{
+       10:   85:    int client_sock = socket(server_addr->sa_family, SOCK_STREAM, 0);
+       10:   86:    if (client_sock < 0)
+        -:   87:    {
+    #####:   88:        throw std::runtime_error("Error opening a client socket: " + std::string(strerror(errno)));
+        -:   89:    }
+       10:   90:    to_cleanup.push_back(std::make_unique<SockCleanup>(SockCleanup(client_sock)));
+        -:   91:    socklen_t server_addr_len;
+       10:   92:    if (server_addr->sa_family == AF_UNIX)
+        -:   93:    {
+        4:   94:        server_addr_len = sizeof(struct sockaddr_un);
+        -:   95:    }
+        6:   96:    else if (server_addr->sa_family == AF_INET)
+        -:   97:    {
+        6:   98:        server_addr_len = sizeof(struct sockaddr_in);
+        -:   99:    }
+        -:  100:    else
+        -:  101:    {
+    #####:  102:        throw std::runtime_error("Unkown sa_family");
+        -:  103:    }
+       10:  104:    if (connect(client_sock, (struct sockaddr *)server_addr, server_addr_len) < 0)
+        -:  105:    {
+    #####:  106:        throw std::runtime_error("Error connecting to the server socket: " + std::string(strerror(errno)));
+        -:  107:    }
+        -:  108:
+       10:  109:    return client_sock;
+        -:  110:}
+        -:  111:
+        8:  112:int open_stream_server(sockaddr *server_address)
+        -:  113:{
+        8:  114:    int server_sock = socket(server_address->sa_family, SOCK_STREAM, 0);
+        8:  115:    if (server_sock < 0)
+        -:  116:    {
+    #####:  117:        throw std::runtime_error("Error opening a server stream: " + std::string(strerror(errno)));
+        -:  118:    }
+        8:  119:    to_cleanup.push_back(std::make_unique<SockCleanup>(SockCleanup(server_sock)));
+        -:  120:
+        8:  121:    if (server_address->sa_family == AF_UNIX)
+        -:  122:    {
+        2:  123:        to_cleanup.push_back(std::make_unique<UDSCleanup>(strdup(((sockaddr_un *)server_address)->sun_path)));
+        -:  124:    }
+        -:  125:    else
+        -:  126:    {
+        6:  127:        int reuse = 1;
+        6:  128:        if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+        -:  129:        {
+    #####:  130:            throw std::runtime_error("Error setting socket option SO_REUSEADDR: " + std::string(strerror(errno)));
+        -:  131:        }
+        -:  132:    }
+        8:  133:    if (bind(server_sock, (struct sockaddr *)server_address, sizeof(*server_address)) < 0)
+        -:  134:    {
+    #####:  135:        throw std::runtime_error("Error binding the server socket: " + std::string(strerror(errno)));
+        -:  136:    }
+        8:  137:    if (listen(server_sock, 1) < 0)
+        -:  138:    {
+    #####:  139:        throw std::runtime_error("Error listening on server socket: " + std::string(strerror(errno)));
+        -:  140:    }
+        -:  141:
+        8:  142:    int client_socket = accept(server_sock, NULL, NULL);
+        8:  143:    if (client_socket < 0)
+        -:  144:    {
+    #####:  145:        throw std::runtime_error("Error accepting client: " + std::string(strerror(errno)));
+        -:  146:    }
+        8:  147:    to_cleanup.push_back(std::make_unique<SockCleanup>(SockCleanup(client_socket)));
+        -:  148:
+        8:  149:    return client_socket;
+        -:  150:}
+        -:  151:
+        4:  152:int open_dgram_server(sockaddr *server_address)
+        -:  153:{
+        4:  154:    int server_sock = socket(server_address->sa_family, SOCK_DGRAM, 0);
+        4:  155:    if (server_sock < 0)
+        -:  156:    {
+    #####:  157:        throw std::runtime_error("Error opening a datagram server socket: " + std::string(strerror(errno)));
+        -:  158:    }
+        4:  159:    to_cleanup.push_back(std::make_unique<SockCleanup>(SockCleanup(server_sock)));
+        -:  160:
+        4:  161:    if (server_address->sa_family == AF_UNIX)
+        -:  162:    {
+        2:  163:        to_cleanup.push_back(std::make_unique<UDSCleanup>(strdup(((sockaddr_un *)server_address)->sun_path)));
+        -:  164:    }
+        -:  165:    else
+        -:  166:    {
+        2:  167:        int reuse = 1;
+        2:  168:        if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+        -:  169:        {
+    #####:  170:            throw std::runtime_error("Error setting socket option SO_REUSEADDR: " + std::string(strerror(errno)));
+        -:  171:        }
+        -:  172:    }
+        4:  173:    if (bind(server_sock, (struct sockaddr *)server_address, sizeof(*server_address)) < 0)
+        -:  174:    {
+    #####:  175:        throw std::runtime_error("Error binding the datagram server socket: " + std::string(strerror(errno)));
+        -:  176:    }
+        -:  177:
+        4:  178:    return server_sock;
+        -:  179:}
+        -:  180:
+       74:  181:void print_usage(char *program_name)
+        -:  182:{
+       74:  183:    std::cerr << "Usage: " << program_name << " -e \"<command>\" [-(i|o|b) UDP/TCP(C<IP or HOSTNAME>,<PORT>|S<PORT>)]" << std::endl;
+       74:  184:}
+        -:  185:
+        -:  186:typedef struct
+        -:  187:{
+        -:  188:    union
+        -:  189:    {
+        -:  190:        struct sockaddr addr;
+        -:  191:        uint8_t addr_data[std::max(sizeof(struct sockaddr_un), sizeof(struct sockaddr_in))];
+        -:  192:    };
+        -:  193:    int socktype;
+        -:  194:    bool is_server;
+        -:  195:} connection;
+        -:  196:
+       96:  197:connection *parse_connection(char *arg)
+        -:  198:{
+       96:  199:    if (strlen(arg) < 4)
+        -:  200:    {
+        6:  201:        throw std::invalid_argument("Argument is too short");
+        -:  202:    }
+        -:  203:    struct addrinfo hints;
+       90:  204:    memset(&hints, 0, sizeof(hints));
+        -:  205:
+       90:  206:    connection *result = (connection *)malloc(sizeof(connection));
+       90:  207:    memset(result, 0, sizeof(*result));
+        -:  208:
+       90:  209:    if (strncmp(arg, "TCP", 3) == 0)
+        -:  210:    {
+       44:  211:        result->socktype = SOCK_STREAM;
+       44:  212:        hints.ai_socktype = SOCK_STREAM;
+       44:  213:        hints.ai_protocol = IPPROTO_TCP;
+        -:  214:    }
+       46:  215:    else if (strncmp(arg, "UDP", 3) == 0)
+        -:  216:    {
+       18:  217:        result->socktype = SOCK_DGRAM;
+       18:  218:        hints.ai_socktype = SOCK_DGRAM;
+       18:  219:        hints.ai_protocol = IPPROTO_UDP;
+        -:  220:    }
+       28:  221:    else if (strncmp(arg, "UDS", 3) == 0)
+        -:  222:    {
+       26:  223:        if (strlen(arg) < 5)
+        -:  224:        {
+        2:  225:            free(result);
+        2:  226:            throw std::invalid_argument("UDS argument is too short");
+        -:  227:        }
+       24:  228:        if (arg[4] == 'S')
+       10:  229:            result->socktype = SOCK_STREAM;
+       14:  230:        else if (arg[4] == 'D')
+       12:  231:            result->socktype = SOCK_DGRAM;
+        -:  232:        else
+        -:  233:        {
+        2:  234:            free(result);
+        2:  235:            throw std::invalid_argument("Unkown UDS type");
+        -:  236:        }
+       22:  237:        if (arg[3] == 'S')
+       10:  238:            result->is_server = true;
+       12:  239:        else if (arg[3] == 'C')
+       10:  240:            result->is_server = false;
+        -:  241:        else
+        -:  242:        {
+        2:  243:            free(result);
+        2:  244:            throw std::invalid_argument("Unkown connection type specifier");
+        -:  245:        }
+       20:  246:        struct sockaddr_un *addr_unix = (struct sockaddr_un *)&result->addr;
+       20:  247:        if (strlen(arg + 5) + 1 > sizeof(addr_unix->sun_path)) // + 1 for null terminator
+        -:  248:        {
+        2:  249:            free(result);
+        2:  250:            throw std::invalid_argument("UDS path is too long");
+        -:  251:        }
+       18:  252:        strcpy(addr_unix->sun_path, arg + 5);
+       18:  253:        addr_unix->sun_family = AF_UNIX;
+       18:  254:        return result;
+        -:  255:    }
+        -:  256:    else
+        -:  257:    {
+        2:  258:        free(result);
+        2:  259:        throw std::invalid_argument("Unkown protocol specifier");
+        -:  260:    }
+        -:  261:
+       62:  262:    char *hostname = NULL, *port = (char *)malloc(MAX_PORT_SIZE);
+        -:  263:
+       62:  264:    hints.ai_family = AF_INET;
+       62:  265:    hints.ai_flags |= AI_ADDRCONFIG | AI_NUMERICSERV; // Returns addresses only if your PC is compatible with them.
+        -:  266:
+       62:  267:    if (arg[3] == 'S')
+        -:  268:    {
+       22:  269:        if (strlen(arg + 4) < 1)
+        -:  270:        {
+        2:  271:            free(port);
+        2:  272:            throw std::invalid_argument("No port provided in server specifier");
+        -:  273:        }
+       20:  274:        strncpy(port, arg + 4, MAX_PORT_SIZE);
+        -:  275:
+        -:  276:        try
+        -:  277:        {
+       24:  278:            if (std::stoi(port) < 0)
+        2:  279:                throw std::exception();
+        -:  280:        }
+        8:  281:        catch (const std::exception &e)
+        -:  282:        {
+        4:  283:            free(port);
+        4:  284:            throw std::invalid_argument("Invalid port number provided in server specifier");
+        -:  285:        }
+        -:  286:
+       16:  287:        hints.ai_flags |= AI_PASSIVE; // to get server address
+        -:  288:
+       16:  289:        result->is_server = true;
+        -:  290:    }
+       40:  291:    else if (arg[3] == 'C')
+        -:  292:    {
+       36:  293:        char *comma = arg + 4;
+      410:  294:        while (*comma != '\0' && *comma != ',')
+      374:  295:            comma += 1;
+       36:  296:        if (*comma == '\0')
+        -:  297:        {
+        4:  298:            free(port);
+        4:  299:            throw std::invalid_argument("No comma seperator in client specifier");
+        -:  300:        }
+       32:  301:        if (strlen(comma + 1) < 1) // nothing after the comma
+        -:  302:        {
+        2:  303:            free(port);
+        2:  304:            throw std::invalid_argument("No port provided in client specifier");
+        -:  305:        }
+       30:  306:        strncpy(port, comma + 1, MAX_PORT_SIZE);
+        -:  307:
+        -:  308:        try
+        -:  309:        {
+       30:  310:            std::stoi(port);
+        -:  311:        }
+    =====:  312:        catch (const std::exception &e)
+        -:  313:        {
+    =====:  314:            free(port);
+    =====:  315:            throw std::invalid_argument("Invalid port number provided in client specifier");
+        -:  316:        }
+        -:  317:
+       30:  318:        hostname = (char *)malloc(INET_ADDRSTRLEN);
+        -:  319:
+       30:  320:        if (comma == arg + 4)
+        -:  321:        {
+        2:  322:            free(port);
+        2:  323:            free(hostname);
+        2:  324:            throw std::invalid_argument("No IP provided in client specifier");
+        -:  325:        }
+       28:  326:        strncpy(hostname, arg + 4, comma - (arg + 4));
+        -:  327:
+       28:  328:        result->is_server = false;
+       28:  329:        hostname[comma - (arg + 4)] = '\0';
+        -:  330:    }
+        -:  331:    else
+        -:  332:    {
+        4:  333:        throw std::invalid_argument("Unkown connection type specifier");
+        -:  334:    }
+        -:  335:
+        -:  336:    struct addrinfo *addrinfo_ret;
+       44:  337:    int error = getaddrinfo(hostname, port, &hints, &addrinfo_ret);
+       44:  338:    if (error != 0)
+        -:  339:    {
+        6:  340:        free(port);
+        6:  341:        free(hostname);
+        6:  342:        throw std::runtime_error("Error getting address info: " + std::string(gai_strerror(error))); // gai = getaddrinfo
+        -:  343:    }
+        -:  344:
+       38:  345:    memcpy(&result->addr_data, addrinfo_ret->ai_addr, sizeof(result->addr_data)); // copy the returned address into the address data array
+        -:  346:
+       38:  347:    freeaddrinfo(addrinfo_ret); // Freeing the addrinfo struct
+       38:  348:    free(port);
+       38:  349:    free(hostname);
+        -:  350:
+       38:  351:    return result;
+        -:  352:}
+        -:  353:
+       26:  354:int setup_connection(connection *conn)
+        -:  355:{
+       26:  356:    switch (conn->socktype)
+        -:  357:    {
+       18:  358:    case SOCK_STREAM:
+       18:  359:        if (conn->is_server)
+        8:  360:            return open_stream_server(&conn->addr);
+        -:  361:        else
+       10:  362:            return open_stream_client(&conn->addr);
+        8:  363:    case SOCK_DGRAM:
+        8:  364:        if (conn->is_server)
+        4:  365:            return open_dgram_server(&conn->addr);
+        -:  366:        else
+        4:  367:            return open_dgram_client(&conn->addr);
+    #####:  368:    default:
+    #####:  369:        throw std::runtime_error("Invalid connection type");
+        -:  370:    }
+        -:  371:}
+        -:  372:
+        -:  373:// conforms to thrd_start_t to run multithreaded
+        6:  374:int piper(void *arg)
+        -:  375:{
+        6:  376:    int *fds = (int *)arg;
+        6:  377:    int read_fd = fds[0], write_fd = fds[1];
+        -:  378:    char buffer[PIPER_BUFFER_SIZE];
+        -:  379:    while (true)
+        -:  380:    {
+       12:  381:        ssize_t n_read = read(read_fd, buffer, sizeof(buffer));
+       12:  382:        if (n_read < 0)
+        -:  383:        {
+        2:  384:            return 1;
+        -:  385:        }
+       10:  386:        if (n_read == 0)
+        -:  387:        {
+        4:  388:            return 0;
+        -:  389:        }
+        6:  390:        ssize_t n_written = write(write_fd, buffer, n_read);
+        6:  391:        if (n_written < 0)
+        -:  392:        {
+    #####:  393:            return 1;
+        -:  394:        }
+        6:  395:        if (n_written == 0)
+        -:  396:        {
+    #####:  397:            return 0;
+        -:  398:        }
+        -:  399:        if (n_written < n_read)
+        -:  400:        {
+        -:  401:            // TODO: write more?
+        -:  402:        }
+        6:  403:    }
+        -:  404:    return 0;
+        -:  405:}
+        -:  406:
+    #####:  407:void cleanup_all(int signum)
+        -:  408:{
+        -:  409:    (void)signum; // don't care which signal, should only be SIGALRM anyway
+        -:  410:
+    #####:  411:    for (auto &cu : to_cleanup)
+        -:  412:    {
+    #####:  413:        cu->cleanup();
+        -:  414:    }
+    #####:  415:    kill(0, SIGALRM); // kill all living children
+    #####:  416:    exit(0);
+        -:  417:}
+        -:  418:
+      101:  419:int main(int argc, char *argv[])
+        -:  420:{
+        -:  421:    {
+      101:  422:        struct sigaction cleanup_action = {};
+      101:  423:        cleanup_action.sa_handler = &cleanup_all;
+      101:  424:        sigaction(SIGALRM, &cleanup_action, NULL);
+        -:  425:    }
+        -:  426:
+      101:  427:    connection *input = NULL;
+      101:  428:    connection *output = NULL;
+      101:  429:    connection *both = NULL;
+        -:  430:
+      101:  431:    char *command = NULL;
+        -:  432:    char c;
+      164:  433:    while ((c = getopt(argc, argv, "e:i:o:b:t:")) != -1)
+        -:  434:    {
+      137:  435:        switch (c)
+        -:  436:        {
+        3:  437:        case 't':
+        -:  438:            try
+        -:  439:            {
+        7:  440:                alarm(std::stoi(optarg));
+        -:  441:            }
+        2:  442:            catch (const std::exception &e)
+        -:  443:            {
+        2:  444:                std::cerr << "Error in timeout argument: Please enter a number" << std::endl;
+        2:  445:                print_usage(argv[0]);
+        2:  446:                return 1;
+        -:  447:            }
+        1:  448:            break;
+        -:  449:
+       24:  450:        case 'e':
+       24:  451:            command = optarg;
+       24:  452:            break;
+        -:  453:
+       30:  454:        case 'i':
+       30:  455:            if (input != NULL)
+        -:  456:            {
+        2:  457:                print_usage(argv[0]);
+        2:  458:                std::cerr << "Cannot have double specifier for input" << std::endl;
+        2:  459:                free(output);
+        2:  460:                free(input);
+        2:  461:                free(both);
+        2:  462:                return 1;
+        -:  463:            }
+       28:  464:            if (both != NULL)
+        -:  465:            {
+        2:  466:                print_usage(argv[0]);
+        2:  467:                std::cerr << "Cannot have specifier for input and for both" << std::endl;
+        2:  468:                free(output);
+        2:  469:                free(input);
+        2:  470:                free(both);
+        2:  471:                return 1;
+        -:  472:            }
+        -:  473:
+        -:  474:            try
+        -:  475:            {
+       26:  476:                input = parse_connection(optarg);
+       22:  477:                if (input->socktype == SOCK_DGRAM && !input->is_server)
+        4:  478:                    throw std::invalid_argument("Cannot use datagram client as input");
+        -:  479:            }
+        6:  480:            catch (const std::invalid_argument &e)
+        -:  481:            {
+        6:  482:                std::cerr << "Error in address argument: " << e.what() << std::endl;
+        6:  483:                print_usage(argv[0]);
+        6:  484:                free(output);
+        6:  485:                free(input);
+        6:  486:                free(both);
+        6:  487:                return 1;
+        -:  488:            }
+        2:  489:            catch (const std::runtime_error &e)
+        -:  490:            {
+        2:  491:                std::cerr << "Error finding hostname: " << e.what() << std::endl;
+        2:  492:                print_usage(argv[0]);
+        2:  493:                free(output);
+        2:  494:                free(input);
+        2:  495:                free(both);
+        2:  496:                return 1;
+        -:  497:            }
+       18:  498:            break;
+       28:  499:        case 'o':
+       28:  500:            if (output != NULL)
+        -:  501:            {
+        2:  502:                print_usage(argv[0]);
+        2:  503:                std::cerr << "Cannot have double specifier for output" << std::endl;
+        2:  504:                free(output);
+        2:  505:                free(input);
+        2:  506:                free(both);
+        2:  507:                return 1;
+        -:  508:            }
+       26:  509:            if (both != NULL)
+        -:  510:            {
+        2:  511:                print_usage(argv[0]);
+        2:  512:                std::cerr << "Cannot have specifier for output and for both" << std::endl;
+        2:  513:                free(output);
+        2:  514:                free(input);
+        2:  515:                free(both);
+        2:  516:                return 1;
+        -:  517:            }
+        -:  518:            try
+        -:  519:            {
+       24:  520:                output = parse_connection(optarg);
+       20:  521:                if (output->socktype == SOCK_DGRAM && output->is_server)
+        6:  522:                    throw std::invalid_argument("Cannot use datagram server as output");
+        -:  523:            }
+        8:  524:            catch (const std::invalid_argument &e)
+        -:  525:            {
+        8:  526:                std::cerr << "Error in address argument: " << e.what() << std::endl;
+        8:  527:                print_usage(argv[0]);
+        8:  528:                free(output);
+        8:  529:                free(input);
+        8:  530:                free(both);
+        8:  531:                return 1;
+        -:  532:            }
+        2:  533:            catch (const std::runtime_error &e)
+        -:  534:            {
+        2:  535:                std::cerr << "Error finding hostname: " << e.what() << std::endl;
+        2:  536:                print_usage(argv[0]);
+        2:  537:                free(output);
+        2:  538:                free(input);
+        2:  539:                free(both);
+        2:  540:                return 1;
+        -:  541:            }
+       14:  542:            break;
+       50:  543:        case 'b':
+       50:  544:            if (both != NULL)
+        -:  545:            {
+        2:  546:                print_usage(argv[0]);
+        2:  547:                std::cerr << "Cannot have double specifier for both" << std::endl;
+        2:  548:                free(output);
+        2:  549:                free(input);
+        2:  550:                free(both);
+        2:  551:                return 1;
+        -:  552:            }
+       48:  553:            if (input != NULL || output != NULL)
+        -:  554:            {
+        2:  555:                print_usage(argv[0]);
+        2:  556:                std::cerr << "Cannot have specifier for both and for input or output" << std::endl;
+        2:  557:                free(output);
+        2:  558:                free(input);
+        2:  559:                free(both);
+        2:  560:                return 1;
+        -:  561:            }
+        -:  562:            try
+        -:  563:            {
+       46:  564:                both = parse_connection(optarg);
+       14:  565:                if (both->socktype == SOCK_DGRAM)
+        8:  566:                    throw std::invalid_argument("Cannot use datagram connection as both input and output");
+        -:  567:            }
+       38:  568:            catch (const std::invalid_argument &e)
+        -:  569:            {
+       38:  570:                std::cerr << "Error in address argument: " << e.what() << std::endl;
+       38:  571:                print_usage(argv[0]);
+       38:  572:                free(output);
+       38:  573:                free(input);
+       38:  574:                free(both);
+       38:  575:                return 1;
+        -:  576:            }
+        2:  577:            catch (const std::runtime_error &e)
+        -:  578:            {
+        2:  579:                std::cerr << "Error finding hostname: " << e.what() << std::endl;
+        2:  580:                print_usage(argv[0]);
+        2:  581:                free(output);
+        2:  582:                free(input);
+        2:  583:                free(both);
+        2:  584:                return 1;
+        -:  585:            }
+        6:  586:            break;
+        -:  587:
+        2:  588:        default:
+        2:  589:            print_usage(argv[0]);
+        2:  590:            std::cerr << "Unknown option: \'" << c << "\'" << std::endl;
+        2:  591:            free(output);
+        2:  592:            free(input);
+        2:  593:            free(both);
+        2:  594:            return 1;
+        -:  595:        }
+        -:  596:    }
+        -:  597:
+       27:  598:    fflush(stdin);
+       27:  599:    fflush(stdout);
+       27:  600:    int input_fd = STDIN_FILENO, output_fd = STDOUT_FILENO;
+        -:  601:
+       27:  602:    if (both != NULL)
+        -:  603:    {
+        -:  604:        try
+        -:  605:        {
+    #####:  606:            input_fd = output_fd = setup_connection(both);
+        -:  607:        }
+    =====:  608:        catch (const std::runtime_error &e)
+        -:  609:        {
+    =====:  610:            std::cerr << "Error opening connection: " << e.what() << std::endl;
+    =====:  611:            free(output);
+    =====:  612:            free(input);
+    =====:  613:            free(both);
+    =====:  614:            return 1;
+        -:  615:        }
+        -:  616:    }
+        -:  617:
+       27:  618:    if (input != NULL)
+        -:  619:    {
+        -:  620:        try
+        -:  621:        {
+       14:  622:            input_fd = setup_connection(input);
+        -:  623:        }
+    =====:  624:        catch (const std::runtime_error &e)
+        -:  625:        {
+    =====:  626:            std::cerr << "Error opening connection: " << e.what() << std::endl;
+    =====:  627:            free(output);
+    =====:  628:            free(input);
+    =====:  629:            free(both);
+    =====:  630:            return 1;
+        -:  631:        }
+        -:  632:    }
+        -:  633:
+       27:  634:    if (output != NULL)
+        -:  635:    {
+        -:  636:        try
+        -:  637:        {
+       12:  638:            output_fd = setup_connection(output);
+        -:  639:        }
+    =====:  640:        catch (const std::runtime_error &e)
+        -:  641:        {
+    =====:  642:            std::cerr << "Error opening connection: " << e.what() << std::endl;
+    =====:  643:            free(output);
+    =====:  644:            free(input);
+    =====:  645:            free(both);
+    =====:  646:            return 1;
+        -:  647:        }
+        -:  648:    }
+        -:  649:    
+        -:  650:    // free memory allocated by setup_connection or its callees
+       27:  651:    free(output);
+       27:  652:    free(input);
+       27:  653:    free(both);
+        -:  654:
+       27:  655:    if (command == NULL)
+        -:  656:    {
+        -:  657:        // run piper(input_fd, STDOUT_FILENO) & piper(STDIN_FILENO, output_fd)
+        -:  658:        thrd_t input_piper;
+        3:  659:        int input_fds[2] = {input_fd, STDOUT_FILENO};
+        3:  660:        thrd_create(&input_piper, piper, input_fds);
+        -:  661:        thrd_t output_piper;
+        3:  662:        int output_fds[2] = {STDIN_FILENO, output_fd};
+        3:  663:        thrd_create(&output_piper, piper, output_fds);
+        -:  664:        int res;
+        3:  665:        thrd_join(input_piper, &res);
+        3:  666:        thrd_join(output_piper, &res);
+        -:  667:    }
+        -:  668:    else
+        -:  669:    {
+       24:  670:        if (dup2(input_fd, STDIN_FILENO) < 0)
+        -:  671:        {
+    #####:  672:            perror("Error duping input file descriptor");
+    #####:  673:            return 1;
+        -:  674:        }
+       24:  675:        if (dup2(output_fd, STDOUT_FILENO) < 0)
+        -:  676:        {
+    #####:  677:            perror("Error duping output file descriptor");
+    #####:  678:            return 1;
+        -:  679:        }
+        -:  680:
+        -:  681:        int wstatus;
+       24:  682:        if (((wstatus = system(command)) != 0 && errno != 0) || WEXITSTATUS(wstatus) == 127)
+        -:  683:        {
+        2:  684:            perror("ERROR: On command execution (system(3))");
+        2:  685:            std::cerr << "INFO: Command was \"" << command << "\"" << std::endl;
+        2:  686:            return 1;
+        -:  687:        }
+        -:  688:    }
+        -:  689:
+       63:  690:    for (auto &cu : to_cleanup)
+        -:  691:    {
+       38:  692:        cu->cleanup();
+        -:  693:    }
+        -:  694:
+       25:  695:    return 0;
+        -:  696:}

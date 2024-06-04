@@ -45,7 +45,7 @@ public:
     {
         unlink(filename);
         free(filename);
-        filename = NULL;
+        filename = NULL; // to not have dangling pointer
     }
 };
 
@@ -185,7 +185,11 @@ void print_usage(char *program_name)
 
 typedef struct
 {
-    struct sockaddr addr;
+    union
+    {
+        struct sockaddr addr;
+        uint8_t addr_data[std::max(sizeof(struct sockaddr_un), sizeof(struct sockaddr_in))];
+    };
     int socktype;
     bool is_server;
 } connection;
@@ -240,7 +244,7 @@ connection *parse_connection(char *arg)
             throw std::invalid_argument("Unkown connection type specifier");
         }
         struct sockaddr_un *addr_unix = (struct sockaddr_un *)&result->addr;
-        if (strlen(arg + 5) + 1 > sizeof(addr_unix->sun_path))
+        if (strlen(arg + 5) + 1 > sizeof(addr_unix->sun_path)) // + 1 for null terminator
         {
             free(result);
             throw std::invalid_argument("UDS path is too long");
@@ -258,7 +262,7 @@ connection *parse_connection(char *arg)
     char *hostname = NULL, *port = (char *)malloc(MAX_PORT_SIZE);
 
     hints.ai_family = AF_INET;
-    hints.ai_flags |= AI_ADDRCONFIG | AI_NUMERICSERV; // Returns IPv6 addresses only if your PC is compatible.
+    hints.ai_flags |= AI_ADDRCONFIG | AI_NUMERICSERV; // Returns addresses only if your PC is compatible with them.
 
     if (arg[3] == 'S')
     {
@@ -280,7 +284,7 @@ connection *parse_connection(char *arg)
             throw std::invalid_argument("Invalid port number provided in server specifier");
         }
 
-        hints.ai_flags |= AI_PASSIVE;
+        hints.ai_flags |= AI_PASSIVE; // to get server address
 
         result->is_server = true;
     }
@@ -294,7 +298,7 @@ connection *parse_connection(char *arg)
             free(port);
             throw std::invalid_argument("No comma seperator in client specifier");
         }
-        if (strlen(comma + 1) < 1)
+        if (strlen(comma + 1) < 1) // nothing after the comma
         {
             free(port);
             throw std::invalid_argument("No port provided in client specifier");
@@ -335,10 +339,10 @@ connection *parse_connection(char *arg)
     {
         free(port);
         free(hostname);
-        throw std::runtime_error("Error getting address info: " + std::string(gai_strerror(error)));
+        throw std::runtime_error("Error getting address info: " + std::string(gai_strerror(error))); // gai = getaddrinfo
     }
 
-    memcpy(&result->addr, addrinfo_ret->ai_addr, sizeof(result->addr));
+    memcpy(&result->addr_data, addrinfo_ret->ai_addr, sizeof(result->addr_data)); // copy the returned address into the address data array
 
     freeaddrinfo(addrinfo_ret); // Freeing the addrinfo struct
     free(port);
@@ -366,6 +370,7 @@ int setup_connection(connection *conn)
     }
 }
 
+// conforms to thrd_start_t to run multithreaded
 int piper(void *arg)
 {
     int *fds = (int *)arg;
@@ -401,21 +406,23 @@ int piper(void *arg)
 
 void cleanup_all(int signum)
 {
-    (void)signum;
+    (void)signum; // don't care which signal, should only be SIGALRM anyway
 
     for (auto &cu : to_cleanup)
     {
         cu->cleanup();
     }
-    kill(0, SIGALRM);
+    kill(0, SIGALRM); // kill all living children
     exit(0);
 }
 
 int main(int argc, char *argv[])
 {
-    struct sigaction cleanup_action = {};
-    cleanup_action.sa_handler = &cleanup_all;
-    sigaction(SIGALRM, &cleanup_action, NULL);
+    {
+        struct sigaction cleanup_action = {};
+        cleanup_action.sa_handler = &cleanup_all;
+        sigaction(SIGALRM, &cleanup_action, NULL);
+    }
 
     connection *input = NULL;
     connection *output = NULL;
@@ -438,7 +445,6 @@ int main(int argc, char *argv[])
                 print_usage(argv[0]);
                 return 1;
             }
-
             break;
 
         case 'e':
@@ -640,7 +646,8 @@ int main(int argc, char *argv[])
             return 1;
         }
     }
-
+    
+    // free memory allocated by setup_connection or its callees
     free(output);
     free(input);
     free(both);

@@ -381,7 +381,7 @@ TEST_CASE("invalid inputs")
     }
     SUBCASE("UDS path too long")
     {
-#define TOO_LONG_NAME "/tmp/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+#define TOO_LONG_NAME "/tmp/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         CHECK(system(PROGRAM_NAME " -b UDSSS" TOO_LONG_NAME " 2> /dev/null") != 0);
     }
 }
