@@ -492,10 +492,6 @@ int piper(void *arg)
         {
             return 0;
         }
-        if (n_written < n_read)
-        {
-            // TODO: write more?
-        }
     }
     return 0;
 }
