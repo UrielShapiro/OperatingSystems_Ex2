@@ -386,6 +386,11 @@ TEST_CASE("invalid inputs")
     }
 }
 
+TEST_CASE("no server listening")
+{
+	CHECK(system(PROGRAM_NAME " -b TCPClocalhost,65534 2>/dev/null") != 0);
+}
+
 TEST_CASE("-t" * doctest::timeout(2))
 {
     if (fork() == 0)
