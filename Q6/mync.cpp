@@ -207,7 +207,7 @@ void print_usage(char *program_name)
               << "Valid connection specifiers:" << std::endl
               << "\tTCP: Use TCPS<port> for server or TCPC<hostname or IP>,<port> for client" << std::endl
               << "\tUDP: Use UDPS<port> for server or UDPC<hostname or IP>,<port> for client" << std::endl
-              << "\tUnix Domain Socket: Use UDSS<socket type><socket path> for server or UDS<socket type>C<socket path> for client" << std::endl
+              << "\tUnix Domain Socket: Use UDSS<socket type><socket path> for server or UDSC<socket type><socket path> for client" << std::endl
               << "\t\tValid socket types: \'S\' for stream socket, \'D\' for datagram socket" << std::endl;
 }
 
